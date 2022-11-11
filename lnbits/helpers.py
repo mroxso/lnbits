@@ -6,10 +6,9 @@ from typing import Any, List, NamedTuple, Optional
 import jinja2
 import shortuuid  # type: ignore
 
+import lnbits.settings as settings
 from lnbits.jinja2_templating import Jinja2Templates
 from lnbits.requestvars import g
-
-import lnbits.settings as settings
 
 
 class Extension(NamedTuple):
@@ -26,14 +25,16 @@ class Extension(NamedTuple):
 class ExtensionManager:
     def __init__(self):
         self._disabled: List[str] = settings.LNBITS_DISABLED_EXTENSIONS
-        self._admin_only: List[str] = [x.strip(' ') for x in settings.LNBITS_ADMIN_EXTENSIONS]
+        self._admin_only: List[str] = [
+            x.strip(" ") for x in settings.LNBITS_ADMIN_EXTENSIONS
+        ]
         self._extension_folders: List[str] = [
             x[1] for x in os.walk(os.path.join(settings.LNBITS_PATH, "extensions"))
         ][0]
 
     @property
     def extensions(self) -> List[Extension]:
-        output = []
+        output: List[Extension] = []
 
         if "all" in self._disabled:
             return output
@@ -160,6 +161,10 @@ def template_renderer(additional_folders: List = []) -> Jinja2Templates:
             ["lnbits/templates", "lnbits/core/templates", *additional_folders]
         )
     )
+
+    if settings.LNBITS_AD_SPACE:
+        t.env.globals["AD_SPACE"] = settings.LNBITS_AD_SPACE
+    t.env.globals["HIDE_API"] = settings.LNBITS_HIDE_API
     t.env.globals["SITE_TITLE"] = settings.LNBITS_SITE_TITLE
     t.env.globals["LNBITS_DENOMINATION"] = settings.LNBITS_DENOMINATION
     t.env.globals["SITE_TAGLINE"] = settings.LNBITS_SITE_TAGLINE
@@ -167,6 +172,8 @@ def template_renderer(additional_folders: List = []) -> Jinja2Templates:
     t.env.globals["LNBITS_THEME_OPTIONS"] = settings.LNBITS_THEME_OPTIONS
     t.env.globals["LNBITS_VERSION"] = settings.LNBITS_COMMIT
     t.env.globals["EXTENSIONS"] = get_valid_extensions()
+    if settings.LNBITS_CUSTOM_LOGO:
+        t.env.globals["USE_CUSTOM_LOGO"] = settings.LNBITS_CUSTOM_LOGO
 
     if settings.DEBUG:
         t.env.globals["VENDORED_JS"] = map(url_for_vendored, get_js_vendored())
@@ -176,3 +183,26 @@ def template_renderer(additional_folders: List = []) -> Jinja2Templates:
         t.env.globals["VENDORED_CSS"] = ["/static/bundle.css"]
 
     return t
+
+
+def get_current_extension_name() -> str:
+    """
+    Returns the name of the extension that calls this method.
+    """
+    import inspect
+    import json
+    import os
+
+    callee_filepath = inspect.stack()[1].filename
+    callee_dirname, callee_filename = os.path.split(callee_filepath)
+
+    path = os.path.normpath(callee_dirname)
+    extension_director_name = path.split(os.sep)[-1]
+    try:
+        config_path = os.path.join(callee_dirname, "config.json")
+        with open(config_path) as json_file:
+            config = json.load(json_file)
+        ext_name = config["name"]
+    except:
+        ext_name = extension_director_name
+    return ext_name

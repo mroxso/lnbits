@@ -5,6 +5,7 @@ import time
 from contextlib import asynccontextmanager
 from typing import Optional
 
+from loguru import logger
 from sqlalchemy import create_engine
 from sqlalchemy_aio.base import AsyncConnection
 from sqlalchemy_aio.strategy import ASYNCIO_STRATEGY  # type: ignore
@@ -50,6 +51,12 @@ class Compat:
         elif self.type == SQLITE:
             return ""
         return "<nothing>"
+
+    @property
+    def big_int(self) -> str:
+        if self.type in {POSTGRES}:
+            return "BIGINT"
+        return "INT"
 
 
 class Connection(Compat):
@@ -130,10 +137,16 @@ class Database(Compat):
                 )
             )
         else:
-            self.path = os.path.join(LNBITS_DATA_FOLDER, f"{self.name}.sqlite3")
-            database_uri = f"sqlite:///{self.path}"
-            self.type = SQLITE
-
+            if os.path.isdir(LNBITS_DATA_FOLDER):
+                self.path = os.path.join(LNBITS_DATA_FOLDER, f"{self.name}.sqlite3")
+                database_uri = f"sqlite:///{self.path}"
+                self.type = SQLITE
+            else:
+                raise NotADirectoryError(
+                    f"LNBITS_DATA_FOLDER named {LNBITS_DATA_FOLDER} was not created"
+                    f" - please 'mkdir {LNBITS_DATA_FOLDER}' and try again"
+                )
+        logger.trace(f"database {self.type} added for {self.name}")
         self.schema = self.name
         if self.name.startswith("ext_"):
             self.schema = self.name[4:]

@@ -4,7 +4,7 @@ from fastapi import Depends, Query
 from starlette.exceptions import HTTPException
 
 from lnbits.core.crud import get_user, get_wallet
-from lnbits.core.services import check_invoice_status, create_invoice
+from lnbits.core.services import check_transaction_status, create_invoice
 from lnbits.decorators import WalletTypeInfo, get_key_type
 
 from . import paywall_ext
@@ -52,20 +52,16 @@ async def api_paywall_delete(
     raise HTTPException(status_code=HTTPStatus.NO_CONTENT)
 
 
-@paywall_ext.post("/api/v1/paywalls/{paywall_id}/invoice")
+@paywall_ext.post("/api/v1/paywalls/invoice/{paywall_id}")
 async def api_paywall_create_invoice(
-    paywall_id,
-    data: CreatePaywallInvoice,
-    wallet: WalletTypeInfo = Depends(get_key_type),
+    data: CreatePaywallInvoice, paywall_id: str = Query(None)
 ):
     paywall = await get_paywall(paywall_id)
-
     if data.amount < paywall.amount:
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
             detail=f"Minimum amount is {paywall.amount} sat.",
         )
-
     try:
         amount = data.amount if data.amount > paywall.amount else paywall.amount
         payment_hash, payment_request = await create_invoice(
@@ -80,17 +76,18 @@ async def api_paywall_create_invoice(
     return {"payment_hash": payment_hash, "payment_request": payment_request}
 
 
-@paywall_ext.post("/api/v1/paywalls/{paywall_id}/check_invoice")
-async def api_paywal_check_invoice(data: CheckPaywallInvoice, paywall_id):
+@paywall_ext.post("/api/v1/paywalls/check_invoice/{paywall_id}")
+async def api_paywal_check_invoice(
+    data: CheckPaywallInvoice, paywall_id: str = Query(None)
+):
     paywall = await get_paywall(paywall_id)
     payment_hash = data.payment_hash
     if not paywall:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail="Paywall does not exist."
         )
-
     try:
-        status = await check_invoice_status(paywall.wallet, payment_hash)
+        status = await check_transaction_status(paywall.wallet, payment_hash)
         is_paid = not status.pending
     except Exception:
         return {"paid": False}
@@ -101,5 +98,4 @@ async def api_paywal_check_invoice(data: CheckPaywallInvoice, paywall_id):
         await payment.set_pending(False)
 
         return {"paid": True, "url": paywall.url, "remembers": paywall.remembers}
-
     return {"paid": False}

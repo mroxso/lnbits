@@ -6,7 +6,7 @@ from lnbits.core.services import create_invoice
 from lnbits.core.views.api import api_payment
 from lnbits.helpers import urlsafe_short_hash
 
-from ..watchonly.crud import get_fresh_address, get_mempool, get_watch_wallet
+from ..watchonly.crud import get_config, get_fresh_address
 
 # from lnbits.db import open_ext_db
 from . import db
@@ -18,7 +18,6 @@ from .models import Charges, CreateCharge
 async def create_charge(user: str, data: CreateCharge) -> Charges:
     charge_id = urlsafe_short_hash()
     if data.onchainwallet:
-        wallet = await get_watch_wallet(data.onchainwallet)
         onchain = await get_fresh_address(data.onchainwallet)
         onchainaddress = onchain.address
     else:
@@ -89,7 +88,8 @@ async def get_charge(charge_id: str) -> Charges:
 
 async def get_charges(user: str) -> List[Charges]:
     rows = await db.fetchall(
-        """SELECT * FROM satspay.charges WHERE "user" = ?""", (user,)
+        """SELECT * FROM satspay.charges WHERE "user" = ? ORDER BY "timestamp" DESC """,
+        (user,),
     )
     return [Charges.from_row(row) for row in rows]
 
@@ -102,14 +102,16 @@ async def check_address_balance(charge_id: str) -> List[Charges]:
     charge = await get_charge(charge_id)
     if not charge.paid:
         if charge.onchainaddress:
-            mempool = await get_mempool(charge.user)
+            config = await get_charge_config(charge_id)
             try:
                 async with httpx.AsyncClient() as client:
                     r = await client.get(
-                        mempool.endpoint + "/api/address/" + charge.onchainaddress
+                        config.mempool_endpoint
+                        + "/api/address/"
+                        + charge.onchainaddress
                     )
                     respAmount = r.json()["chain_stats"]["funded_txo_sum"]
-                    if respAmount >= charge.balance:
+                    if respAmount > charge.balance:
                         await update_charge(charge_id=charge_id, balance=respAmount)
             except Exception:
                 pass
@@ -120,3 +122,10 @@ async def check_address_balance(charge_id: str) -> List[Charges]:
                 return await update_charge(charge_id=charge_id, balance=charge.amount)
     row = await db.fetchone("SELECT * FROM satspay.charges WHERE id = ?", (charge_id,))
     return Charges.from_row(row) if row else None
+
+
+async def get_charge_config(charge_id: str):
+    row = await db.fetchone(
+        """SELECT "user" FROM satspay.charges WHERE id = ?""", (charge_id,)
+    )
+    return await get_config(row.user)

@@ -232,6 +232,9 @@ new Vue({
         generateChart(this.$refs.canvas, this.payments)
       })
     },
+    focusInput(el) {
+      this.$nextTick(() => this.$refs[el].focus())
+    },
     showReceiveDialog: function () {
       this.receive.show = true
       this.receive.status = 'pending'
@@ -243,6 +246,7 @@ new Vue({
       this.receive.paymentChecker = null
       this.receive.minMax = [0, 2100000000000000]
       this.receive.lnurl = null
+      this.focusInput('setAmount')
     },
     showParseDialog: function () {
       this.parse.show = true
@@ -357,6 +361,35 @@ new Vue({
           this.receive.status = 'pending'
         })
     },
+    onInitQR: async function (promise) {
+      try {
+        await promise
+      } catch (error) {
+        let mapping = {
+          NotAllowedError: 'ERROR: you need to grant camera access permission',
+          NotFoundError: 'ERROR: no camera on this device',
+          NotSupportedError:
+            'ERROR: secure context required (HTTPS, localhost)',
+          NotReadableError: 'ERROR: is the camera already in use?',
+          OverconstrainedError: 'ERROR: installed cameras are not suitable',
+          StreamApiNotSupportedError:
+            'ERROR: Stream API is not supported in this browser',
+          InsecureContextError:
+            'ERROR: Camera access is only permitted in secure context. Use HTTPS or localhost rather than HTTP.'
+        }
+        let valid_error = Object.keys(mapping).filter(key => {
+          return error.name === key
+        })
+        let camera_error = valid_error
+          ? mapping[valid_error]
+          : `ERROR: Camera error (${error.name})`
+        this.parse.camera.show = false
+        this.$q.notify({
+          message: camera_error,
+          type: 'negative'
+        })
+      }
+    },
     decodeQR: function (res) {
       this.parse.data.request = res
       this.decodeRequest()
@@ -364,12 +397,12 @@ new Vue({
     },
     decodeRequest: function () {
       this.parse.show = true
-
-      if (this.parse.data.request.startsWith('lightning:')) {
+      let req = this.parse.data.request.toLowerCase()
+      if (this.parse.data.request.toLowerCase().startsWith('lightning:')) {
         this.parse.data.request = this.parse.data.request.slice(10)
-      } else if (this.parse.data.request.startsWith('lnurl:')) {
+      } else if (this.parse.data.request.toLowerCase().startsWith('lnurl:')) {
         this.parse.data.request = this.parse.data.request.slice(6)
-      } else if (this.parse.data.request.indexOf('lightning=lnurl1') !== -1) {
+      } else if (req.indexOf('lightning=lnurl1') !== -1) {
         this.parse.data.request = this.parse.data.request
           .split('lightning=')[1]
           .split('&')[0]
@@ -618,10 +651,10 @@ new Vue({
     },
     updateWalletName: function () {
       let newName = this.newName
+      let adminkey = this.g.wallet.adminkey
       if (!newName || !newName.length) return
-      // let data = {name: newName}
       LNbits.api
-        .request('PUT', '/api/v1/wallet/' + newName, this.g.wallet.inkey, {})
+        .request('PUT', '/api/v1/wallet/' + newName, adminkey, {})
         .then(res => {
           this.newName = ''
           this.$q.notify({
@@ -668,7 +701,17 @@ new Vue({
       })
     },
     exportCSV: function () {
-      LNbits.utils.exportCSV(this.paymentsTable.columns, this.payments)
+      // status is important for export but it is not in paymentsTable
+      // because it is manually added with payment detail link and icons
+      // and would cause duplication in the list
+      let columns = structuredClone(this.paymentsTable.columns)
+      columns.unshift({
+        name: 'pending',
+        align: 'left',
+        label: 'Pending',
+        field: 'pending'
+      })
+      LNbits.utils.exportCSV(columns, this.payments)
     }
   },
   watch: {
@@ -691,10 +734,7 @@ new Vue({
   },
   mounted: function () {
     // show disclaimer
-    if (
-      this.$refs.disclaimer &&
-      !this.$q.localStorage.getItem('lnbits.disclaimerShown')
-    ) {
+    if (!this.$q.localStorage.getItem('lnbits.disclaimerShown')) {
       this.disclaimerDialog.show = true
       this.$q.localStorage.set('lnbits.disclaimerShown', true)
     }
@@ -705,3 +745,11 @@ new Vue({
     )
   }
 })
+
+if (navigator.serviceWorker != null) {
+  navigator.serviceWorker
+    .register('/service-worker.js')
+    .then(function (registration) {
+      console.log('Registered events at scope: ', registration.scope)
+    })
+}

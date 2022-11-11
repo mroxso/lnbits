@@ -261,7 +261,7 @@ window.LNbits = {
         return data
       }
     },
-    exportCSV: function (columns, data) {
+    exportCSV: function (columns, data, fileName) {
       var wrapCsvValue = function (val, formatFn) {
         var formatted = formatFn !== void 0 ? formatFn(val) : val
 
@@ -295,7 +295,7 @@ window.LNbits = {
         .join('\r\n')
 
       var status = Quasar.utils.exportFile(
-        'table-export.csv',
+        `${fileName || 'table-export'}.csv`,
         content,
         'text/csv'
       )
@@ -315,6 +315,7 @@ window.windowMixin = {
   data: function () {
     return {
       g: {
+        offline: !navigator.onLine,
         visibleDrawer: false,
         extensions: [],
         user: null,
@@ -345,17 +346,34 @@ window.windowMixin = {
     }
   },
   created: function () {
-    this.$q.dark.set(this.$q.localStorage.getItem('lnbits.darkMode'))
-    this.g.allowedThemes = window.allowedThemes ?? ['classic']
+    if (
+      this.$q.localStorage.getItem('lnbits.darkMode') == true ||
+      this.$q.localStorage.getItem('lnbits.darkMode') == false
+    ) {
+      this.$q.dark.set(this.$q.localStorage.getItem('lnbits.darkMode'))
+    } else {
+      this.$q.dark.set(true)
+    }
+    this.g.allowedThemes = window.allowedThemes ?? ['bitcoin']
+
+    addEventListener('offline', event => {
+      this.g.offline = true
+    })
+
+    addEventListener('online', event => {
+      this.g.offline = false
+    })
 
     // failsafe if admin changes themes halfway
+    if (!this.$q.localStorage.getItem('lnbits.theme')) {
+      this.changeColor(this.g.allowedThemes[0])
+    }
     if (
       this.$q.localStorage.getItem('lnbits.theme') &&
       !this.g.allowedThemes.includes(
         this.$q.localStorage.getItem('lnbits.theme')
       )
     ) {
-      console.log('allowedThemes changed by Admin', this.g.allowedThemes[0])
       this.changeColor(this.g.allowedThemes[0])
     }
 
@@ -374,7 +392,7 @@ window.windowMixin = {
     }
     if (window.extensions) {
       var user = this.g.user
-      this.g.extensions = Object.freeze(
+      const extensions = Object.freeze(
         window.extensions
           .map(function (data) {
             return window.LNbits.map.extension(data)
@@ -395,9 +413,13 @@ window.windowMixin = {
             return obj
           })
           .sort(function (a, b) {
-            return a.name > b.name
+            const nameA = a.name.toUpperCase()
+            const nameB = b.name.toUpperCase()
+            return nameA < nameB ? -1 : nameA > nameB ? 1 : 0
           })
       )
+
+      this.g.extensions = extensions
     }
   }
 }

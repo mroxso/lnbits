@@ -1,10 +1,9 @@
-import subprocess
 import importlib
-
-from environs import Env  # type: ignore
+import subprocess
 from os import path
 from typing import List
 
+from environs import Env  # type: ignore
 
 env = Env()
 env.read_env()
@@ -14,8 +13,8 @@ wallet_class = getattr(
     wallets_module, env.str("LNBITS_BACKEND_WALLET_CLASS", default="VoidWallet")
 )
 
-ENV = env.str("QUART_ENV", default="production")
-DEBUG = env.bool("QUART_DEBUG", default=False) or ENV == "development"
+DEBUG = env.bool("DEBUG", default=False)
+
 HOST = env.str("HOST", default="127.0.0.1")
 PORT = env.int("PORT", default=5000)
 
@@ -25,31 +24,45 @@ LNBITS_DATA_FOLDER = env.str(
 )
 LNBITS_DATABASE_URL = env.str("LNBITS_DATABASE_URL", default=None)
 
-LNBITS_ALLOWED_USERS: List[str] = env.list(
-    "LNBITS_ALLOWED_USERS", default=[], subcast=str
-)
-LNBITS_ADMIN_USERS: List[str] = env.list("LNBITS_ADMIN_USERS", default=[], subcast=str)
-LNBITS_ADMIN_EXTENSIONS: List[str] = env.list("LNBITS_ADMIN_EXTENSIONS", default=[], subcast=str)
-LNBITS_DISABLED_EXTENSIONS: List[str] = env.list(
-    "LNBITS_DISABLED_EXTENSIONS", default=[], subcast=str
-)
+LNBITS_ALLOWED_USERS: List[str] = [
+    x.strip(" ") for x in env.list("LNBITS_ALLOWED_USERS", default=[], subcast=str)
+]
+LNBITS_ADMIN_USERS: List[str] = [
+    x.strip(" ") for x in env.list("LNBITS_ADMIN_USERS", default=[], subcast=str)
+]
+LNBITS_ADMIN_EXTENSIONS: List[str] = [
+    x.strip(" ") for x in env.list("LNBITS_ADMIN_EXTENSIONS", default=[], subcast=str)
+]
+LNBITS_DISABLED_EXTENSIONS: List[str] = [
+    x.strip(" ")
+    for x in env.list("LNBITS_DISABLED_EXTENSIONS", default=[], subcast=str)
+]
 
+LNBITS_AD_SPACE = [x.strip(" ") for x in env.list("LNBITS_AD_SPACE", default=[])]
+LNBITS_HIDE_API = env.bool("LNBITS_HIDE_API", default=False)
 LNBITS_SITE_TITLE = env.str("LNBITS_SITE_TITLE", default="LNbits")
 LNBITS_DENOMINATION = env.str("LNBITS_DENOMINATION", default="sats")
 LNBITS_SITE_TAGLINE = env.str(
     "LNBITS_SITE_TAGLINE", default="free and open-source lightning wallet"
 )
 LNBITS_SITE_DESCRIPTION = env.str("LNBITS_SITE_DESCRIPTION", default="")
-LNBITS_THEME_OPTIONS: List[str] = env.list(
-    "LNBITS_THEME_OPTIONS",
-    default="classic, flamingo, mint, salvador, monochrome, autumn",
-    subcast=str,
-)
+LNBITS_THEME_OPTIONS: List[str] = [
+    x.strip(" ")
+    for x in env.list(
+        "LNBITS_THEME_OPTIONS",
+        default="classic, flamingo, mint, salvador, monochrome, autumn",
+        subcast=str,
+    )
+]
+LNBITS_CUSTOM_LOGO = env.str("LNBITS_CUSTOM_LOGO", default="")
 
 WALLET = wallet_class()
+FAKE_WALLET = getattr(wallets_module, "FakeWallet")()
 DEFAULT_WALLET_NAME = env.str("LNBITS_DEFAULT_WALLET_NAME", default="LNbits wallet")
 PREFER_SECURE_URLS = env.bool("LNBITS_FORCE_HTTPS", default=True)
 
+RESERVE_FEE_MIN = env.int("LNBITS_RESERVE_FEE_MIN", default=2000)
+RESERVE_FEE_PERCENT = env.float("LNBITS_RESERVE_FEE_PERCENT", default=1.0)
 SERVICE_FEE = env.float("LNBITS_SERVICE_FEE", default=0.0)
 
 try:
@@ -62,3 +75,13 @@ try:
     )
 except:
     LNBITS_COMMIT = "unknown"
+
+
+BOLTZ_NETWORK = env.str("BOLTZ_NETWORK", default="main")
+BOLTZ_URL = env.str("BOLTZ_URL", default="https://boltz.exchange/api")
+BOLTZ_MEMPOOL_SPACE_URL = env.str(
+    "BOLTZ_MEMPOOL_SPACE_URL", default="https://mempool.space"
+)
+BOLTZ_MEMPOOL_SPACE_URL_WS = env.str(
+    "BOLTZ_MEMPOOL_SPACE_URL_WS", default="wss://mempool.space"
+)

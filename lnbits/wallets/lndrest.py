@@ -1,19 +1,24 @@
 import asyncio
-import httpx
-import json
 import base64
+import hashlib
+import json
 from os import getenv
-from typing import Optional, Dict, AsyncGenerator
+from pydoc import describe
+from typing import AsyncGenerator, Dict, Optional
+
+import httpx
+from loguru import logger
 
 from lnbits import bolt11 as lnbits_bolt11
 
 from .base import (
-    StatusResponse,
     InvoiceResponse,
     PaymentResponse,
     PaymentStatus,
+    StatusResponse,
     Wallet,
 )
+from .macaroon import AESCipher, load_macaroon
 
 
 class LndRestWallet(Wallet):
@@ -34,8 +39,16 @@ class LndRestWallet(Wallet):
             or getenv("LND_INVOICE_MACAROON")
             or getenv("LND_REST_INVOICE_MACAROON")
         )
-        self.auth = {"Grpc-Metadata-macaroon": macaroon}
-        self.cert = getenv("LND_REST_CERT")
+
+        encrypted_macaroon = getenv("LND_REST_MACAROON_ENCRYPTED")
+        if encrypted_macaroon:
+            macaroon = AESCipher(description="macaroon decryption").decrypt(
+                encrypted_macaroon
+            )
+        self.macaroon = load_macaroon(macaroon)
+
+        self.auth = {"Grpc-Metadata-macaroon": self.macaroon}
+        self.cert = getenv("LND_REST_CERT", True)
 
     async def status(self) -> StatusResponse:
         try:
@@ -60,12 +73,18 @@ class LndRestWallet(Wallet):
         amount: int,
         memo: Optional[str] = None,
         description_hash: Optional[bytes] = None,
+        unhashed_description: Optional[bytes] = None,
+        **kwargs,
     ) -> InvoiceResponse:
         data: Dict = {"value": amount, "private": True}
         if description_hash:
             data["description_hash"] = base64.b64encode(description_hash).decode(
                 "ascii"
             )
+        elif unhashed_description:
+            data["description_hash"] = base64.b64encode(
+                hashlib.sha256(unhashed_description).digest()
+            ).decode("ascii")
         else:
             data["memo"] = memo or ""
 
@@ -89,37 +108,30 @@ class LndRestWallet(Wallet):
 
         return InvoiceResponse(True, checking_id, payment_request, None)
 
-    async def pay_invoice(self, bolt11: str) -> PaymentResponse:
+    async def pay_invoice(self, bolt11: str, fee_limit_msat: int) -> PaymentResponse:
         async with httpx.AsyncClient(verify=self.cert) as client:
             # set the fee limit for the payment
-            invoice = lnbits_bolt11.decode(bolt11)
             lnrpcFeeLimit = dict()
-            if invoice.amount_msat > 1000_000:
-                lnrpcFeeLimit["percent"] = "1"  # in percent
-            else:
-                lnrpcFeeLimit["fixed"] = "10"  # in sat
+            lnrpcFeeLimit["fixed_msat"] = "{}".format(fee_limit_msat)
 
             r = await client.post(
                 url=f"{self.endpoint}/v1/channels/transactions",
                 headers=self.auth,
                 json={"payment_request": bolt11, "fee_limit": lnrpcFeeLimit},
-                timeout=180,
+                timeout=None,
             )
 
         if r.is_error or r.json().get("payment_error"):
             error_message = r.json().get("payment_error") or r.text
-            return PaymentResponse(False, None, 0, None, error_message)
+            return PaymentResponse(False, None, None, None, error_message)
 
         data = r.json()
-        payment_hash = data["payment_hash"]
-        checking_id = payment_hash
+        checking_id = base64.b64decode(data["payment_hash"]).hex()
         fee_msat = int(data["payment_route"]["total_fees_msat"])
         preimage = base64.b64decode(data["payment_preimage"]).hex()
         return PaymentResponse(True, checking_id, fee_msat, preimage, None)
 
     async def get_invoice_status(self, checking_id: str) -> PaymentStatus:
-        checking_id = checking_id.replace("_", "/")
-
         async with httpx.AsyncClient(verify=self.cert) as client:
             r = await client.get(
                 url=f"{self.endpoint}/v1/invoice/{checking_id}", headers=self.auth
@@ -133,18 +145,21 @@ class LndRestWallet(Wallet):
         return PaymentStatus(True)
 
     async def get_payment_status(self, checking_id: str) -> PaymentStatus:
-        async with httpx.AsyncClient(verify=self.cert) as client:
-            r = await client.get(
-                url=f"{self.endpoint}/v1/payments",
-                headers=self.auth,
-                params={"max_payments": "20", "reversed": True},
+        """
+        This routine checks the payment status using routerpc.TrackPaymentV2.
+        """
+        # convert checking_id from hex to base64 and some LND magic
+        try:
+            checking_id = base64.urlsafe_b64encode(bytes.fromhex(checking_id)).decode(
+                "ascii"
             )
-
-        if r.is_error:
+        except ValueError:
             return PaymentStatus(None)
 
+        url = f"{self.endpoint}/v2/router/track/{checking_id}"
+
         # check payment.status:
-        # https://api.lightning.community/rest/index.html?python#peersynctype
+        # https://api.lightning.community/?python=#paymentpaymentstatus
         statuses = {
             "UNKNOWN": None,
             "IN_FLIGHT": None,
@@ -152,21 +167,38 @@ class LndRestWallet(Wallet):
             "FAILED": False,
         }
 
-        # for some reason our checking_ids are in base64 but the payment hashes
-        # returned here are in hex, lnd is weird
-        checking_id = base64.b64decode(checking_id).hex()
-
-        for p in r.json()["payments"]:
-            if p["payment_hash"] == checking_id:
-                return PaymentStatus(statuses[p["status"]])
+        async with httpx.AsyncClient(
+            timeout=None, headers=self.auth, verify=self.cert
+        ) as client:
+            async with client.stream("GET", url) as r:
+                async for l in r.aiter_lines():
+                    try:
+                        line = json.loads(l)
+                        if line.get("error"):
+                            logger.error(
+                                line["error"]["message"]
+                                if "message" in line["error"]
+                                else line["error"]
+                            )
+                            return PaymentStatus(None)
+                        payment = line.get("result")
+                        if payment is not None and payment.get("status"):
+                            return PaymentStatus(
+                                paid=statuses[payment["status"]],
+                                fee_msat=payment.get("fee_msat"),
+                                preimage=payment.get("payment_preimage"),
+                            )
+                        else:
+                            return PaymentStatus(None)
+                    except:
+                        continue
 
         return PaymentStatus(None)
 
     async def paid_invoices_stream(self) -> AsyncGenerator[str, None]:
-        url = self.endpoint + "/v1/invoices/subscribe"
-
         while True:
             try:
+                url = self.endpoint + "/v1/invoices/subscribe"
                 async with httpx.AsyncClient(
                     timeout=None, headers=self.auth, verify=self.cert
                 ) as client:
@@ -181,8 +213,8 @@ class LndRestWallet(Wallet):
 
                             payment_hash = base64.b64decode(inv["r_hash"]).hex()
                             yield payment_hash
-            except (OSError, httpx.ConnectError, httpx.ReadError):
-                pass
-
-            print("lost connection to lnd invoices stream, retrying in 5 seconds")
-            await asyncio.sleep(5)
+            except Exception as exc:
+                logger.error(
+                    f"lost connection to lnd invoices stream: '{exc}', retrying in 5 seconds"
+                )
+                await asyncio.sleep(5)

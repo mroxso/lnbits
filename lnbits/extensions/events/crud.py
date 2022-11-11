@@ -16,42 +16,25 @@ async def create_ticket(
         INSERT INTO events.ticket (id, wallet, event, name, email, registered, paid)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (payment_hash, wallet, event, name, email, False, False),
+        (payment_hash, wallet, event, name, email, False, True),
+    )
+
+    # UPDATE EVENT DATA ON SOLD TICKET
+    eventdata = await get_event(event)
+    assert eventdata, "Couldn't get event from ticket being paid"
+    sold = eventdata.sold + 1
+    amount_tickets = eventdata.amount_tickets - 1
+    await db.execute(
+        """
+        UPDATE events.events
+        SET sold = ?, amount_tickets = ?
+        WHERE id = ?
+        """,
+        (sold, amount_tickets, event),
     )
 
     ticket = await get_ticket(payment_hash)
     assert ticket, "Newly created ticket couldn't be retrieved"
-    return ticket
-
-
-async def set_ticket_paid(payment_hash: str) -> Tickets:
-    row = await db.fetchone("SELECT * FROM events.ticket WHERE id = ?", (payment_hash,))
-    if row[6] != True:
-        await db.execute(
-            """
-            UPDATE events.ticket
-            SET paid = true
-            WHERE id = ?
-            """,
-            (payment_hash,),
-        )
-
-        eventdata = await get_event(row[2])
-        assert eventdata, "Couldn't get event from ticket being paid"
-
-        sold = eventdata.sold + 1
-        amount_tickets = eventdata.amount_tickets - 1
-        await db.execute(
-            """
-            UPDATE events.events
-            SET sold = ?, amount_tickets = ?
-            WHERE id = ?
-            """,
-            (sold, amount_tickets, row[2]),
-        )
-
-    ticket = await get_ticket(payment_hash)
-    assert ticket, "Newly updated ticket couldn't be retrieved"
     return ticket
 
 
@@ -76,7 +59,7 @@ async def delete_ticket(payment_hash: str) -> None:
 
 
 async def delete_event_tickets(event_id: str) -> None:
-    await db.execute("DELETE FROM events.tickets WHERE event = ?", (event_id,))
+    await db.execute("DELETE FROM events.ticket WHERE event = ?", (event_id,))
 
 
 # EVENTS
