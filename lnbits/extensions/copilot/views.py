@@ -31,3 +31,9 @@ async def panel(request: Request):
     return copilot_renderer().TemplateResponse(
         "copilot/panel.html", {"request": request}
     )
+
+@copilot_ext.get("/chat/", response_class=HTMLResponse)
+async def chat(request: Request):
+    return copilot_renderer().TemplateResponse(
+        "copilot/chat.html", {"request": request}
+    )
