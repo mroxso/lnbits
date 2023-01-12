@@ -32,8 +32,8 @@ async def panel(request: Request):
         "copilot/panel.html", {"request": request}
     )
 
-@copilot_ext.get("/chat/", response_class=HTMLResponse)
-async def chat(request: Request):
+@copilot_ext.get("/chat/{chat_id}", response_class=HTMLResponse)
+async def chat(chat_id, request: Request):
     return copilot_renderer().TemplateResponse(
-        "copilot/chat.html", {"request": request}
+        "copilot/chat.html", {"request": request, "chat_id": chat_id}
     )

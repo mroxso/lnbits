@@ -109,14 +109,14 @@
             document.domain +
             ':' +
             location.port +
-            '/api/v1/ws/' + self.copilot.id
+            '/api/v1/ws/' + self.copilot
         } else {
           localUrl =
             'ws://' +
             document.domain +
             ':' +
             location.port +
-            '/api/v1/ws/' + self.copilot.id
+            '/api/v1/ws/' + self.copilot
         }
         this.ws = new WebSocket(localUrl)
         this.ws.addEventListener('message', async ({data}) => {
@@ -127,7 +127,7 @@
       },
       created: function(){
         self = this
-        self.copilot = JSON.parse(localStorage.getItem('copilot'))
+        self.copilot = "{{chat_id}}"
         self.initWs()
       }
     })
