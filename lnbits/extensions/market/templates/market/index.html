@@ -326,8 +326,8 @@
           'Other'
         ],
         relayOptions: [
-          'wss://nostr-relay.herokuapp.com/ws',
-          'wss://nostr-relay.bigsun.xyz/ws',
+          'wss://nostr-pub.wellorder.net',
+          'wss://relay.nostr.info',
           'wss://freedom-relay.herokuapp.com/ws'
         ],
         label: '',
@@ -557,12 +557,31 @@
           .onOk(async () => {
             this.$q.localStorage.set(`lnbits.DAmode`, value)
             this.diagonAlley = true
-            let nostrData = await initNostrMarket({
+            let nostrData = initNostrMarket({
               stalls: this.stalls,
               shipping: this.zones,
               products: this.products
             })
-            console.log(nostrData)
+            // now we have all the data, create and send a note/event to Nostr
+            let event = {
+              kind: 1,
+              created_at: Math.floor(Date.now() / 1000),
+              tags: [],
+              content: JSON.stringify(nostrData),
+              pubkey: this.keys.pubkey
+            }
+            event.id = nostr.getEventHash(event)
+            event.sig = nostr.signEvent(event, this.keys.privkey)
+            for (const url of this.relayOptions) {
+              try {
+                const relay = nostr.relayInit(url)
+                await publishNostrEvent(relay, event)
+              } catch (e) {
+                console.error(e)
+                continue
+              }
+            }
+            console.log(event)
           })
       },
       setCurrency(v) {
@@ -1398,6 +1417,7 @@
         if (keys) {
           this.keys = keys
         }
+        console.log(this.keys)
         setInterval(() => {
           this.getAllMessages()
           this.getOrders()

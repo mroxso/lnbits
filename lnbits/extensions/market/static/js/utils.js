@@ -1,4 +1,4 @@
-async function initNostrMarket(data) {
+function initNostrMarket(data) {
   console.log(data)
   let stalls = data.stalls.map(stall => {
     return {
@@ -29,4 +29,30 @@ async function initNostrMarket(data) {
     action: null,
     stalls
   }
+}
+
+async function publishNostrEvent(relay, event) {
+  //connect to relay
+  await relay.connect()
+
+  relay.on('connect', () => {
+    console.log(`connected to ${relay.url}`)
+  })
+  relay.on('error', () => {
+    console.log(`failed to connect to ${relay.url}`)
+  })
+  //publish event
+  let pub = relay.publish(event)
+  pub.on('ok', () => {
+    console.log(`${relay.url} has accepted our event`)
+  })
+  pub.on('seen', () => {
+    console.log(`we saw the event on ${relay.url}`)
+    relay.close()
+  })
+  pub.on('failed', reason => {
+    console.log(`failed to publish to ${relay.url}: ${reason}`)
+    relay.close()
+  })
+  return
 }
