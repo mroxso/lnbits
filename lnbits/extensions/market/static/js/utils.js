@@ -5,7 +5,6 @@ function initNostrMarket(data) {
       id: stall.id,
       name: stall.name,
       description: '',
-      categories: [],
       shipping: stall.shippingzones,
       products: data.products
         .filter(p => p.stall === stall.id)
@@ -29,6 +28,26 @@ function initNostrMarket(data) {
     action: null,
     stalls
   }
+}
+
+function nostrStallData(data, action = 'update') {
+  return {
+    action,
+    stalls: [
+      {
+        id: data.id,
+        name: data.name,
+        description: '',
+        shipping: data.shippingzones,
+        products: null,
+        action
+      }
+    ]
+  }
+}
+
+function nostrProductData(data, action = 'update') {
+  return
 }
 
 async function publishNostrEvent(relay, event) {

@@ -164,9 +164,9 @@
 
 {% endblock %} {% block scripts %} {{ window_vars(user) }}
 
+<script src="{{ url_for('market_static', path='js/utils.js') }}"></script>
 <script src="https://cdn.jsdelivr.net/npm/pica@6.1.1/dist/pica.min.js"></script>
 <script src="https://unpkg.com/nostr-tools/lib/nostr.bundle.js"></script>
-<script src="{{ url_for('market_static', path='js/utils.js') }}"></script>
 
 <script>
   Vue.component(VueQrcode.name, VueQrcode)
@@ -542,6 +542,56 @@
         }
         this[dialog].data = {}
       },
+      ////////////////////////////////////////
+      ////////////////NOSTR///////////////////
+      ////////////////////////////////////////
+      // There's probably better suited kinds for this than 1, and could simplify the flow
+      async sendToRelays(rawData = {}, type = null, action = null) {
+        let publishToRelays = new Set()
+        switch (type) {
+          case 'stall':
+            data = nostrStallData(rawData, action)
+            let relays = [
+              ...rawData?.relays.split(','),
+              ...rawData?.crelays.split(',')
+            ]
+              .filter(Boolean)
+              .map(r => publishToRelays.add(r))
+            break
+          case 'product':
+            data = nostrProductData(rawData, action)
+            break
+          default:
+            initNostrMarket({
+              stalls: this.stalls,
+              shipping: this.zones,
+              products: this.products
+            })
+        }
+
+        let event = {
+          kind: 1,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [],
+          content: JSON.stringify(data),
+          pubkey: this.keys.pubkey
+        }
+        event.id = nostr.getEventHash(event)
+        event.sig = nostr.signEvent(event, this.keys.privkey)
+        console.log(event)
+        // Commented out for testing, to avoid spamming relays
+        /*
+        for (const url of publishToRelays) {
+          try {
+            const relay = nostr.relayInit(url)
+            await publishNostrEvent(relay, event)
+          } catch (e) {
+            console.error(e)
+            continue
+          }
+        }
+        */
+      },
       toggleDA(value, evt) {
         if (this.$q.localStorage.getItem('lnbits.DAmode')) {
           this.$q.localStorage.set(`lnbits.DAmode`, false)
@@ -557,31 +607,8 @@
           .onOk(async () => {
             this.$q.localStorage.set(`lnbits.DAmode`, value)
             this.diagonAlley = true
-            let nostrData = initNostrMarket({
-              stalls: this.stalls,
-              shipping: this.zones,
-              products: this.products
-            })
-            // now we have all the data, create and send a note/event to Nostr
-            let event = {
-              kind: 1,
-              created_at: Math.floor(Date.now() / 1000),
-              tags: [],
-              content: JSON.stringify(nostrData),
-              pubkey: this.keys.pubkey
-            }
-            event.id = nostr.getEventHash(event)
-            event.sig = nostr.signEvent(event, this.keys.privkey)
-            for (const url of this.relayOptions) {
-              try {
-                const relay = nostr.relayInit(url)
-                await publishNostrEvent(relay, event)
-              } catch (e) {
-                console.error(e)
-                continue
-              }
-            }
-            console.log(event)
+            // now collect all market data, create and send a note/event to Nostr
+            this.sendToRelays()
           })
       },
       setCurrency(v) {
@@ -721,11 +748,13 @@
             .includes(z.split('-')[0].trim())
         )
 
-        this.stallDialog.data.shippingzones = shippingzones //this.stallDialog.data.shippingzones.split(",")
-
-        //let zones = this.zoneOptions
-        //  .filter(z => z.id == )
+        this.stallDialog.data.shippingzones = shippingzones
+        let relays = this.relayOptions.filter(r =>
+          this.stallDialog.data.relays.split(',').includes(r)
+        )
+        this.stallDialog.data.relays = relays
         this.stallDialog.show = true
+        console.log(this.stallDialog.data)
       },
       sendStallFormData: function () {
         let data = {
@@ -733,7 +762,8 @@
           wallet: this.stallDialog.data.wallet,
           publickey: this.stallDialog.data.publickey || this.keys.pubkey,
           currency: this.currencies.unit,
-          relays: this.stallDialog.data.relays,
+          relays: this.stallDialog.data.relays.toString(),
+          crelays: this.stallDialog.data.crelays,
           shippingzones: this.stallDialog.data.shippingzones
             .map(z => z.split('-')[0].trim())
             .toString()
@@ -756,11 +786,18 @@
             }).inkey,
             data
           )
-          .then(function (response) {
+          .then(async function (response) {
             self.stalls = _.reject(self.stalls, function (obj) {
               return obj.id == data.id
             })
-            self.stalls.push(mapStalls(response.data))
+            let stallData = mapStalls(response.data)
+            self.stalls.push(stallData)
+            //UPDATE Nostr data
+            try {
+              await self.sendToRelays(stallData, 'stall', 'update')
+            } catch (e) {
+              console.error(e)
+            }
             self.resetDialog('stallDialog')
           })
           .catch(function (error) {
@@ -778,8 +815,15 @@
             }).inkey,
             data
           )
-          .then(function (response) {
-            self.stalls.push(mapStalls(response.data))
+          .then(async function (response) {
+            let stallData = mapStalls(response.data)
+            self.stalls.push(mapStalls(stallData))
+            //SEND Nostr data
+            try {
+              await self.sendToRelays(stallData, 'stall', 'update')
+            } catch (e) {
+              console.error(e)
+            }
             self.resetDialog('stallDialog')
             //self.stallDialog.show = false
             //self.stallDialog.data = {}
@@ -802,7 +846,13 @@
                 '/market/api/v1/stalls/' + stallId,
                 _.findWhere(self.g.user.wallets, {id: stall.wallet}).adminkey
               )
-              .then(function (response) {
+              .then(async function (response) {
+                //SEND Nostr data
+                try {
+                  await self.sendToRelays({id: stallId}, 'stall', 'delete')
+                } catch (e) {
+                  console.error(e)
+                }
                 self.stalls = _.reject(self.stalls, function (obj) {
                   return obj.id == stallId
                 })

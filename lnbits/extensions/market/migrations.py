@@ -154,3 +154,10 @@ async def m001_initial(db):
         await db.execute(
             "CREATE INDEX idx_messages_conversations ON market.messages (id_conversation)"
         )
+
+
+async def m002_add_custom_relays(db):
+    """
+    Add custom relays to stores
+    """
+    await db.execute("ALTER TABLE market.stalls ADD COLUMN crelays TEXT;")

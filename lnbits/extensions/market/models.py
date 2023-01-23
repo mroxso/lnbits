@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from fastapi.param_functions import Query
+from fastapi import Query
 from pydantic import BaseModel
 
 
@@ -22,6 +22,7 @@ class Stalls(BaseModel):
     currency: str
     publickey: Optional[str]
     relays: Optional[str]
+    crelays: Optional[str]
     shippingzones: str
 
 
@@ -31,6 +32,7 @@ class createStalls(BaseModel):
     currency: str = Query("sat")
     publickey: str = Query(None)
     relays: str = Query(None)
+    crelays: str = Query(None)
     shippingzones: str = Query(...)
 
 
