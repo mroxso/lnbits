@@ -548,25 +548,25 @@
       // There's probably better suited kinds for this than 1, and could simplify the flow
       async sendToRelays(rawData = {}, type = null, action = null) {
         let publishToRelays = new Set()
-        switch (type) {
-          case 'stall':
-            data = nostrStallData(rawData, action)
-            let relays = [
-              ...rawData?.relays.split(','),
-              ...rawData?.crelays.split(',')
-            ]
-              .filter(Boolean)
-              .map(r => publishToRelays.add(r))
-            break
-          case 'product':
-            data = nostrProductData(rawData, action)
-            break
-          default:
-            initNostrMarket({
-              stalls: this.stalls,
-              shipping: this.zones,
-              products: this.products
-            })
+        let data
+
+        if (type === 'stall') {
+          data = nostrStallData(rawData, action)
+          let relays = [
+            ...rawData?.relays.split(','),
+            ...rawData?.crelays.split(',')
+          ]
+            .filter(Boolean)
+            .map(r => publishToRelays.add(r))
+        } else if (type === 'product') {
+          data = nostrProductData(rawData, action)
+          let relays = []
+        } else {
+          data = initNostrMarket({
+            stalls: this.stalls,
+            shipping: this.zones,
+            products: this.products
+          })
         }
 
         let event = {
@@ -597,6 +597,9 @@
           this.$q.localStorage.set(`lnbits.DAmode`, false)
           this.diagonAlley = false
           return
+        }
+        if (!this.keys) {
+          this.generateKeys()
         }
         LNbits.utils
           .confirmDialog(
@@ -953,11 +956,18 @@
             }).inkey,
             data
           )
-          .then(function (response) {
+          .then(async function (response) {
             self.products = _.reject(self.products, function (obj) {
               return obj.id == data.id
             })
-            self.products.push(mapProducts(response.data))
+            let productData = mapProducts(response.data)
+            self.products.push(productData)
+            //SEND Nostr data
+            try {
+              await self.sendToRelays(productData, 'product', 'update')
+            } catch (e) {
+              console.error(e)
+            }
             self.resetDialog('productDialog')
             //self.productDialog.show = false
             //self.productDialog.data = {}
@@ -1467,7 +1477,7 @@
         if (keys) {
           this.keys = keys
         }
-        console.log(this.keys)
+
         setInterval(() => {
           this.getAllMessages()
           this.getOrders()

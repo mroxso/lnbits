@@ -39,7 +39,6 @@ function nostrStallData(data, action = 'update') {
         name: data.name,
         description: '',
         shipping: data.shippingzones,
-        products: null,
         action
       }
     ]
@@ -47,7 +46,30 @@ function nostrStallData(data, action = 'update') {
 }
 
 function nostrProductData(data, action = 'update') {
-  return
+  let stallId = data.stall
+
+  return {
+    action,
+    stalls: [
+      {
+        id: stallId,
+        products: [
+          {
+            id: data.id,
+            name: data.product,
+            description: data.description,
+            categories: data.categories,
+            amount: data.quantity,
+            price: data.price,
+            image: data.image.startsWith('data:')
+              ? data.image.slice(0, 20)
+              : data.image,
+            action: null
+          }
+        ]
+      }
+    ]
+  }
 }
 
 async function publishNostrEvent(relay, event) {
