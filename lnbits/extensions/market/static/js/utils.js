@@ -15,7 +15,9 @@ function initNostrMarket(data) {
           categories: p.categories,
           amount: p.quantity,
           price: p.price,
-          image: p.image.startsWith('data:') ? p.image.slice(0, 20) : p.image,
+          images: p.image && [
+            p.image.startsWith('data:') ? p.image.slice(0, 20) : p.image
+          ],
           action: null
         })),
       action: null
@@ -61,15 +63,42 @@ function nostrProductData(data, action = 'update') {
             categories: data.categories,
             amount: data.quantity,
             price: data.price,
-            image: data.image.startsWith('data:')
-              ? data.image.slice(0, 20)
-              : data.image,
+            images: data.image && [
+              data.image.startsWith('data:')
+                ? data.image.slice(0, 20)
+                : data.image
+            ],
             action: null
           }
         ]
       }
     ]
   }
+}
+
+async function subscribeToChatRelay(relay, pubkeys) {
+  await relay.connect()
+
+  relay.on('connect', () => {
+    console.log(`connected to ${relay.url}`)
+  })
+  relay.on('error', () => {
+    console.log(`failed to connect to ${relay.url}`)
+  })
+
+  let sub = relay.sub({
+    filter: {
+      kinds: [4],
+      authors: authors,
+      '#p': authors
+    }
+  })
+
+  sub.on('event', event => {
+    console.log('we got the event we wanted:', event)
+  })
+
+  return sub
 }
 
 async function publishNostrEvent(relay, event) {
