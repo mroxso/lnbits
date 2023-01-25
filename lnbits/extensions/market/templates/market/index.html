@@ -545,10 +545,14 @@
       ////////////////////////////////////////
       ////////////////NOSTR///////////////////
       ////////////////////////////////////////
+      async nostrChat() {
+        return
+        //let sub = await subscribeToChatRelay()
+      },
       // There's probably better suited kinds for this than 1, and could simplify the flow
       async sendToRelays(rawData = {}, type = null, action = null) {
         let publishToRelays = new Set()
-        let data
+        let data = {}
 
         if (type === 'stall') {
           data = nostrStallData(rawData, action)
@@ -560,7 +564,14 @@
             .map(r => publishToRelays.add(r))
         } else if (type === 'product') {
           data = nostrProductData(rawData, action)
-          let relays = []
+          let stall = this.stalls.find(s => s.id == rawData.stall)
+          console.log(this.stalls, stall)
+          let relays = [
+            ...stall?.relays.split(','),
+            ...stall?.crelays.split(',')
+          ]
+            .filter(Boolean)
+            .map(r => publishToRelays.add(r))
         } else {
           data = initNostrMarket({
             stalls: this.stalls,
@@ -578,7 +589,7 @@
         }
         event.id = nostr.getEventHash(event)
         event.sig = nostr.signEvent(event, this.keys.privkey)
-        console.log(event)
+        console.log(event, publishToRelays)
         // Commented out for testing, to avoid spamming relays
         /*
         for (const url of publishToRelays) {
@@ -899,12 +910,18 @@
             ','
           )
         }
-        if (self.productDialog.data.image.startsWith('data:')) {
+        if (
+          self.productDialog.data.image &&
+          self.productDialog.data.image.startsWith('data:')
+        ) {
           self.productDialog.url = false
         }
 
         self.productDialog.show = true
-        console.log(self.productDialog)
+        console.log(
+          self.productDialog.data,
+          self.stalls.find(s => s.id == link.stall)
+        )
       },
       sendProductFormData: function () {
         let _data = {...this.productDialog.data}
@@ -987,8 +1004,15 @@
             _.findWhere(self.g.user.wallets, {id: walletId}).inkey,
             data
           )
-          .then(response => {
-            self.products.push(mapProducts(response.data))
+          .then(async response => {
+            let productData = mapProducts(response.data)
+            self.products.push(productData)
+            //SEND Nostr data
+            try {
+              await self.sendToRelays(productData, 'product', 'update')
+            } catch (e) {
+              console.error(e)
+            }
             self.resetDialog('productDialog')
           })
           .catch(error => {
