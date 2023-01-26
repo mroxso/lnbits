@@ -545,7 +545,27 @@
       ////////////////////////////////////////
       ////////////////NOSTR///////////////////
       ////////////////////////////////////////
+      getRelays(stallId = false) {
+        let publishToRelays = new Set()
+        let stalls = stallId
+          ? [this.stalls.find(s => s.id == stallId)]
+          : this.stalls
+        console.log(stalls)
+        stalls.map(stall => {
+          let relays = []
+          if (stall.relays) {
+            relays = [...relays, ...stall.relays.split(',')]
+          }
+          if (stall.crelays) {
+            relays = [...relays, ...stall.crelays.split(',')]
+          }
+          relays.filter(Boolean).map(r => publishToRelays.add(r))
+        })
+        return publishToRelays
+      },
       async nostrChat() {
+        //Subscribe to relays
+        let relays = this.stalls
         return
         //let sub = await subscribeToChatRelay()
       },
@@ -556,28 +576,17 @@
 
         if (type === 'stall') {
           data = nostrStallData(rawData, action)
-          let relays = [
-            ...rawData?.relays.split(','),
-            ...rawData?.crelays.split(',')
-          ]
-            .filter(Boolean)
-            .map(r => publishToRelays.add(r))
+          publishToRelays = this.getRelays(rawData.id)
         } else if (type === 'product') {
           data = nostrProductData(rawData, action)
-          let stall = this.stalls.find(s => s.id == rawData.stall)
-          console.log(this.stalls, stall)
-          let relays = [
-            ...stall?.relays.split(','),
-            ...stall?.crelays.split(',')
-          ]
-            .filter(Boolean)
-            .map(r => publishToRelays.add(r))
+          publishToRelays = this.getRelays(rawData.stall)
         } else {
           data = initNostrMarket({
             stalls: this.stalls,
             shipping: this.zones,
             products: this.products
           })
+          publishToRelays = this.getRelays()
         }
 
         let event = {
@@ -763,9 +772,11 @@
         )
 
         this.stallDialog.data.shippingzones = shippingzones
-        let relays = this.relayOptions.filter(r =>
-          this.stallDialog.data.relays.split(',').includes(r)
-        )
+        let relays =
+          this.stallDialog.data.relays &&
+          this.relayOptions.filter(r =>
+            this.stallDialog.data.relays.split(',').includes(r)
+          )
         this.stallDialog.data.relays = relays
         this.stallDialog.show = true
         console.log(this.stallDialog.data)
@@ -776,8 +787,12 @@
           wallet: this.stallDialog.data.wallet,
           publickey: this.stallDialog.data.publickey || this.keys.pubkey,
           currency: this.currencies.unit,
-          relays: this.stallDialog.data.relays.toString(),
-          crelays: this.stallDialog.data.crelays,
+          relays:
+            this.stallDialog.data.relays &&
+            this.stallDialog.data.relays.toString(),
+          crelays:
+            this.stallDialog.data.crelays &&
+            this.stallDialog.data.crelays.toString(),
           shippingzones: this.stallDialog.data.shippingzones
             .map(z => z.split('-')[0].trim())
             .toString()
@@ -1501,7 +1516,7 @@
         if (keys) {
           this.keys = keys
         }
-
+        //console.log(this.getRelays())
         setInterval(() => {
           this.getAllMessages()
           this.getOrders()
