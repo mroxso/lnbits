@@ -563,11 +563,20 @@
         })
         return publishToRelays
       },
-      async nostrChat() {
+      async nostrGetAllMessages() {
         //Subscribe to relays
-        let relays = this.stalls
-        return
-        //let sub = await subscribeToChatRelay()
+        let relays = this.getRelays()
+        let messages = new Map()
+        for (const url of relays) {
+          try {
+            const relay = nostr.relayInit(url)
+            let msgs = await subscribeToChatRelay(relay, [this.keys.pubkey])
+            console.log(msgs)
+          } catch (e) {
+            console.error(e)
+            continue
+          }
+        }
       },
       // There's probably better suited kinds for this than 1, and could simplify the flow
       async sendToRelays(rawData = {}, type = null, action = null) {
@@ -1516,6 +1525,7 @@
         if (keys) {
           this.keys = keys
         }
+        this.nostrGetAllMessages()
         //console.log(this.getRelays())
         setInterval(() => {
           this.getAllMessages()
