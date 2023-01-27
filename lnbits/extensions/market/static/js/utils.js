@@ -76,7 +76,7 @@ function nostrProductData(data, action = 'update') {
   }
 }
 
-async function subscribeToChatRelay(relay, pubkeys) {
+async function subscribeToChatRelay(relay, pubkeys, cb = () => {}) {
   await relay.connect()
 
   relay.on('connect', () => {
@@ -89,12 +89,17 @@ async function subscribeToChatRelay(relay, pubkeys) {
   let sub = relay.sub([
     {
       kinds: [4],
+      authors: pubkeys
+    },
+    {
+      kinds: [4],
       '#p': pubkeys
     }
   ])
 
   sub.on('event', event => {
-    console.log('we got the event we wanted:', event)
+    // console.log('we got the event we wanted:', event)
+    cb(event)
   })
 
   sub.on('eose', () => {
