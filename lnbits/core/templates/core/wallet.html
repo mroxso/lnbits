@@ -289,7 +289,7 @@
           <q-card>
             <q-card-section>
               <h6 class="text-subtitle1 q-mt-none q-mb-sm">
-                {{ SITE_TITLE }} Wallet:
+                {{ SITE_TITLE }} Wallet: {{ HIDE_API }}
                 <strong><em>{{ wallet.name }}</em></strong>
               </h6>
             </q-card-section>
@@ -665,47 +665,27 @@
             {% endraw %}
           </div>
           <div v-else>
-            <q-form
-              v-if="!parse.camera.show"
-              @submit="decodeRequest"
-              class="q-gutter-md"
+            <q-responsive :ratio="1" max-height="50%">
+              <qrcode-stream
+                @decode="decodeQR"
+                @init="onInitQR"
+                class="rounded-borders"
+              ></qrcode-stream>
+            </q-responsive>
+            <q-input
+              filled
+              dense
+              v-model="poo"
+              type="text"
+              style="width:100%;"
+              label="Paste invoice/payment request/lnurl *"
             >
-              <q-input
-                filled
-                dense
-                v-model.trim="parse.data.request"
-                type="textarea"
-                label="Paste an invoice, payment request or lnurl code *"
-              >
-              </q-input>
-              <div class="row q-mt-lg">
-                <q-btn
-                  unelevated
-                  color="primary"
-                  :disable="parse.data.request == ''"
-                  type="submit"
-                  >Read</q-btn
-                >
-                <q-btn v-close-popup flat color="grey" class="q-ml-auto"
-                  >Cancel</q-btn
-                >
-              </div>
-            </q-form>
-            <div v-else>
-              <q-responsive :ratio="1">
-                <qrcode-stream
-                  @decode="decodeQR"
-                  @init="onInitQR"
-                  class="rounded-borders"
-                ></qrcode-stream>
-              </q-responsive>
-              <div class="row q-mt-lg">
-                <q-btn @click="closeCamera" flat color="grey" class="q-ml-auto">
-                  Cancel
-                </q-btn>
-              </div>
+            </q-input>
+            <div class="row q-mt-lg">
+
             </div>
           </div>
+        </div>
         </q-card>
       </q-dialog>
 

@@ -186,7 +186,8 @@ new Vue({
       },
       balance: 0,
       credit: 0,
-      newName: ''
+      newName: '',
+      poo: ''
     }
   },
   computed: {
@@ -717,11 +718,23 @@ new Vue({
         field: 'pending'
       })
       LNbits.utils.exportCSV(columns, this.payments)
+    },
+    invoicePaste: function () {
+      console.log("wah")
+      if (this.parse.data.request.toLowerCase().includes('lnurl') || this.parse.data.request.toLowerCase().includes('lnbc')) {
+        console.log("wah")
+        this.decodeRequest()
+        this.parse.camera.show = false
+      }
+      
     }
   },
   watch: {
     payments: function () {
       this.fetchBalance()
+    },
+    poo: function () {
+      console.log("wah")
     }
   },
   created: function () {
