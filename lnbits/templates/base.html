@@ -27,6 +27,7 @@
         <q-toolbar>
           {% block drawer_toggle %}
           <q-btn
+            v-if="g.user.admin"
             dense
             flat
             round
@@ -71,6 +72,16 @@
             class="q-pl-md"
           >
             <div class="row no-wrap q-pa-md">
+              <q-btn
+                v-if="g.allowedThemes.includes('riot')"
+                dense
+                flat
+                @click="changeColor('riot')"
+                icon="format_color_fill"
+                color="orange-10"
+                size="md"
+                ><q-tooltip>riot</q-tooltip>
+              </q-btn>
               <q-btn
                 v-if="g.allowedThemes.includes('classic')"
                 dense
@@ -172,6 +183,7 @@
         side="left"
         :width="($q.screen.lt.md) ? 260 : 230"
         show-if-above
+        v-if="g.user.admin"
         :elevated="$q.screen.lt.md"
       >
         <lnbits-wallet-list></lnbits-wallet-list>

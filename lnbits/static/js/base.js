@@ -426,7 +426,6 @@ window.windowMixin = {
             return nameA < nameB ? -1 : nameA > nameB ? 1 : 0
           })
       )
-
       this.g.extensions = extensions
     }
   }
