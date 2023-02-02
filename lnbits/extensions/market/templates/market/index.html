@@ -189,9 +189,9 @@
   }
   const mapProducts = obj => {
     obj._data = _.clone(obj)
-    if ('{{  currency }}' != 'sat') {
-      obj.price /= 100
-    }
+    //if ('{{  currency }}' != 'sat') {
+    //  obj.price /= 100
+    //}
     return obj
   }
   const mapZone = obj => {
@@ -947,7 +947,14 @@
           )
           .then(function (response) {
             if (response.data) {
-              self.products = response.data.map(mapProducts)
+              self.products = response.data.map(mapProducts).map(p => {
+                let stall = self.stalls.find(s => s.id == p.stall)
+                console.log(stall)
+                if (stall.currency != 'sat') {
+                  p.price /= 100
+                }
+                return p
+              })
             }
           })
           .catch(function (error) {
@@ -1032,6 +1039,11 @@
               return obj.id == data.id
             })
             let productData = mapProducts(response.data)
+            let currency = this.stalls.find(s => s.id == productData.stall)
+              .currency
+            if (currency != 'sat') {
+              productData.price /= 100
+            }
             self.products.push(productData)
             //SEND Nostr data
             try {
@@ -1060,6 +1072,11 @@
           )
           .then(async response => {
             let productData = mapProducts(response.data)
+            let currency = this.stalls.find(s => s.id == productData.stall)
+              .currency
+            if (currency != 'sat') {
+              productData.price /= 100
+            }
             self.products.push(productData)
             //SEND Nostr data
             try {
