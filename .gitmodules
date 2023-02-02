@@ -1,0 +1,3 @@
+[submodule "lnbits/extensions/nostradmin/nostr"]
+	path = lnbits/extensions/nostradmin/nostr
+	url = https://github.com/callebtc/python-nostr/

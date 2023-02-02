@@ -6,7 +6,7 @@
       <q-card-section>
         <div class="row items-center no-wrap q-mb-md">
           <div class="col">
-            <h5 class="text-subtitle1 q-my-none">NOSTR RELAYS ONLINE</h5>
+            <h5 class="text-subtitle1 q-my-none">nostr relays</h5>
           </div>
 
           <div class="col-auto">
@@ -21,9 +21,6 @@
                 <q-icon name="search"></q-icon>
               </template>
             </q-input>
-            <q-btn flat color="grey" @click="exportlnurldeviceCSV"
-              >Export to CSV</q-btn
-            >
           </div>
         </div>
         <q-table
@@ -31,8 +28,8 @@
           dense
           :data="nostrrelayLinks"
           row-key="id"
-          :columns="nostrTable.columns"
-          :pagination.sync="nostrTable.pagination"
+          :columns="relayTable.columns"
+          :pagination.sync="relayTable.pagination"
           :filter="filter"
         >
           {% raw %}
@@ -67,6 +64,15 @@
                   <div v-else>{{ col.value }}</div>
                 </div>
               </q-td>
+              <q-td auto-width>
+                <q-btn
+                  flat
+                  dense
+                  size="xs"
+                  @click="deleteRelay(props.row.id)"
+                  icon="cancel"
+                  color="pink"
+                ></q-btn>
             </q-tr>
           </template>
           {% endraw %}
@@ -74,7 +80,7 @@
       </q-card-section>
     </q-card>
     <q-card>
-      <q-tabs
+      <!-- <q-tabs
         v-model="listSelection"
         dense
         class="text-grey"
@@ -85,10 +91,19 @@
       >
         <q-tab name="denylist" label="Deny List"></q-tab>
         <q-tab name="allowlist" label="Allow List"></q-tab>
-      </q-tabs>
-
+      </q-tabs> -->
       <q-separator></q-separator>
-
+      <q-form class="q-gutter-md q-y-md" @submit="addRelay">
+        <div class="row">
+          <div class="col q-mx-lg q-my-sm">
+            <q-input v-model="relayToAdd" dense filled autogrow></q-input>
+          </div>
+          <div class="col q-mx-lg items-align flex items-center justify-right">
+            <q-btn unelevated color="primary" type="submit"> Add relay </q-btn>
+          </div>
+        </div>
+      </q-form>
+      <!-- 
       <q-tab-panels v-model="listSelection" animated>
         <q-tab-panel name="denylist">
           <div class="text-h6">Relays in this list will NOT be used</div>
@@ -135,7 +150,7 @@
             </div>
           </q-form>
         </q-tab-panel>
-      </q-tab-panels>
+      </q-tab-panels> -->
     </q-card>
   </div>
 
@@ -176,32 +191,34 @@
     mixins: [windowMixin],
     data: function () {
       return {
-        listSelection: 'denylist',
-        setList: {
-          allowlist: '',
-          denylist: ''
-        },
+        relayToAdd: '',
         nostrrelayLinks: [],
         filter: '',
-        nostrTable: {
+        relayTable: {
           columns: [
             {
-              name: 'wah',
+              name: 'connected_string',
               align: 'left',
-              label: 'id',
-              field: 'id'
+              label: '',
+              field: 'connected_string'
             },
             {
               name: 'relay',
               align: 'left',
-              label: 'relay',
-              field: 'relay'
+              label: 'URL',
+              field: 'url'
             },
             {
               name: 'status',
-              align: 'left',
-              label: 'status',
+              align: 'center',
+              label: 'Status',
               field: 'status'
+            },
+            {
+              name: 'ping',
+              align: 'center',
+              label: 'Ping',
+              field: 'ping'
             }
           ],
           pagination: {
@@ -231,72 +248,17 @@
             LNbits.utils.notifyApiError(error)
           })
       },
-      setAllowList: function () {
-        var self = this
-        LNbits.api
-          .request(
-            'POST',
-            '/nostradmin/api/v1/allowlist',
-            self.g.user.wallets[0].adminkey,
-            self.allowList
-          )
-          .then(function (response) {
-            if (response.data) {
-              self.allowList = response.data
-            }
-          })
-          .catch(function (error) {
-            LNbits.utils.notifyApiError(error)
-          })
-      },
-      setRelayList: function () {
-        var self = this
-        console.log(self.setList)
-        LNbits.api
-          .request(
-            'POST',
-            '/nostradmin/api/v1/setlist',
-            self.g.user.wallets[0].adminkey,
-            self.setList
-          )
-          .then(function (response) {
-            if (response.data) {
-              console.log(response.data)
-              // self.denyList = response.data
-            }
-          })
-          .catch(function (error) {
-            LNbits.utils.notifyApiError(error)
-          })
-      },
-      getLists: function () {
-        var self = this
-        LNbits.api
-          .request(
-            'GET',
-            '/nostradmin/api/v1/relaylist',
-            self.g.user.wallets[0].adminkey
-          )
-          .then(function (response) {
-            if (response.data) {
-              console.log(response.data)
-              self.setList.denylist = response.data.denylist
-              self.setList.allowlist = response.data.allowlist
-            }
-          })
-          .catch(function (error) {
-            LNbits.utils.notifyApiError(error)
-          })
+      addRelay: function () {
+        console.log("RELAY " + self.relayToAdd)
       },
       exportlnurldeviceCSV: function () {
         var self = this
-        LNbits.utils.exportCSV(self.nostrTable.columns, this.nostrLinks)
+        LNbits.utils.exportCSV(self.relayTable.columns, this.nostrLinks)
       }
     },
     created: function () {
       var self = this
       this.getRelays()
-      this.getLists()
     }
   })
 </script>
