@@ -13,9 +13,9 @@
   {% if HIDE_API and AD_SPACE %}
   <div class="col-12 col-md-8 q-gutter-y-md">
     {% elif HIDE_API %}
-    <div class="col-12 q-gutter-y-md">
+    <div class="col-12 q-gutter-y-md" style="max-width:900px">
       {% else %}
-      <div class="col-12 col-md-7 q-gutter-y-md">
+      <div class="col-12 col-md-7 q-gutter-y-md" >
         {% endif %}
         <q-card>
           <q-card-section>
@@ -62,8 +62,8 @@
                 unelevated
                 color="primary"
                 class="full-width"
-                @click="showParseDialog"
-                >Paste Request</q-btn
+                @click="showReceiveDialog"
+                >Receive</q-btn
               >
             </div>
             <div class="col">
@@ -71,19 +71,9 @@
                 unelevated
                 color="primary"
                 class="full-width"
-                @click="showReceiveDialog"
-                >Create Invoice</q-btn
+                @click="showParseDialog"
+                >Send</q-btn
               >
-            </div>
-            <div class="col">
-              <q-btn
-                unelevated
-                color="secondary"
-                icon="photo_camera"
-                @click="showCamera"
-                >scan
-                <q-tooltip>Use camera to scan an invoice/QR</q-tooltip>
-              </q-btn>
             </div>
           </div>
         </q-card>
@@ -500,7 +490,10 @@
               <q-btn v-close-popup flat color="grey" class="q-ml-auto"
                 >Cancel</q-btn
               >
+            
             </div>
+            <q-separator></q-separator>
+            <center><q-btn outline color="primary" icon="photo_camera" round @click="showCamera"> </q-btn></center>
             <q-spinner
               v-if="receive.status == 'loading'"
               color="primary"
@@ -675,7 +668,8 @@
             <q-input
               filled
               dense
-              v-model="poo"
+              v-model=""
+              onpaste="invoicePaste()"
               type="text"
               style="width:100%;"
               label="Paste invoice/payment request/lnurl *"
@@ -719,19 +713,18 @@
         indicator-color="transparent"
       >
         <q-tab
+          v-if="minimalWallet"
           icon="account_balance_wallet"
           label="Wallets"
           @click="g.visibleDrawer = !g.visibleDrawer"
         >
         </q-tab>
-        <q-tab icon="content_paste" label="Paste" @click="showParseDialog">
-        </q-tab>
+        
         <q-tab icon="file_download" label="Receive" @click="showReceiveDialog">
         </q-tab>
-
-        <q-tab icon="photo_camera" label="Scan" @click="showCamera"> </q-tab>
+        <q-tab icon="qr_code_scanner" label="Send" @click="showParseDialog">
+        </q-tab>
       </q-tabs>
-
       <q-dialog v-model="disclaimerDialog.show">
         <q-card class="q-pa-lg">
           <h6 class="q-my-md text-primary">Warning</h6>

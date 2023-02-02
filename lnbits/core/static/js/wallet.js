@@ -187,7 +187,7 @@ new Vue({
       balance: 0,
       credit: 0,
       newName: '',
-      poo: ''
+      invoicePaste: ''
     }
   },
   computed: {
@@ -733,8 +733,12 @@ new Vue({
     payments: function () {
       this.fetchBalance()
     },
-    poo: function () {
-      console.log("wah")
+    invoicePaste: function (oldInput,  newInput) {
+      if(newInput.toLowerCase().includes('lnurl') || newInput.toLowerCase().includes('lnbc')){
+        this.parse.data.request = newInput
+        this.decodeRequest()
+        console.log(newInput)
+      }
     }
   },
   created: function () {
@@ -749,6 +753,9 @@ new Vue({
       .catch(err => {
         LNbits.utils.notifyApiError(err)
       })
+      if(this.g.user.admin){
+        this.minimalWallet = true
+      }
   },
   mounted: function () {
     // show disclaimer

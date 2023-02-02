@@ -330,7 +330,8 @@ window.windowMixin = {
         wallet: null,
         payments: [],
         allowedThemes: null
-      }
+      },
+      minimalWallet: false
     }
   },
 

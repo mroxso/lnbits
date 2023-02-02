@@ -27,7 +27,7 @@
         <q-toolbar>
           {% block drawer_toggle %}
           <q-btn
-            v-if="g.user.admin"
+            v-if="minimalWallet"
             dense
             flat
             round
@@ -183,7 +183,7 @@
         side="left"
         :width="($q.screen.lt.md) ? 260 : 230"
         show-if-above
-        v-if="g.user.admin"
+        v-if="minimalWallet"
         :elevated="$q.screen.lt.md"
       >
         <lnbits-wallet-list></lnbits-wallet-list>
