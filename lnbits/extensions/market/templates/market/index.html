@@ -610,6 +610,7 @@
       },
       // There's probably better suited kinds for this than 1, and could simplify the flow
       async sendToRelays(rawData = {}, type = null, action = null) {
+        if (!this.diagonAlley) return
         let publishToRelays = new Set()
         let data = {}
 
