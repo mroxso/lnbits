@@ -187,7 +187,7 @@ new Vue({
       balance: 0,
       credit: 0,
       newName: '',
-      invoicePaste: ''
+      invoicePasted: ''
     }
   },
   computed: {
@@ -719,32 +719,25 @@ new Vue({
       })
       LNbits.utils.exportCSV(columns, this.payments)
     },
-    invoicePaste: function () {
-      console.log("wah")
-      if (this.parse.data.request.toLowerCase().includes('lnurl') || this.parse.data.request.toLowerCase().includes('lnbc')) {
-        console.log("wah")
+    onPaste: function (evt) {
+      this.parse.data.request = evt.clipboardData.getData('text/plain')
+      if (
+        this.parse.data.request.toLowerCase().includes('lnurl') ||
+        this.parse.data.request.toLowerCase().includes('lnbc')
+      ) {
         this.decodeRequest()
-        this.parse.camera.show = false
       }
-      
     }
   },
   watch: {
     payments: function () {
       this.fetchBalance()
-    },
-    invoicePaste: function (oldInput,  newInput) {
-      if(newInput.toLowerCase().includes('lnurl') || newInput.toLowerCase().includes('lnbc')){
-        this.parse.data.request = newInput
-        this.decodeRequest()
-        console.log(newInput)
-      }
     }
   },
   created: function () {
     this.fetchBalance()
     this.fetchPayments()
-
+    this.parse.data.request
     LNbits.api
       .request('GET', '/api/v1/currencies')
       .then(response => {
@@ -753,9 +746,9 @@ new Vue({
       .catch(err => {
         LNbits.utils.notifyApiError(err)
       })
-      if(this.g.user.admin){
-        this.minimalWallet = true
-      }
+    if (this.g.user.admin) {
+      this.minimalWallet = true
+    }
   },
   mounted: function () {
     // show disclaimer

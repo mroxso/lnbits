@@ -67,7 +67,15 @@ class ThemesSettings(LNbitsSettings):
     lnbits_site_description: str = Field(default=None)
     lnbits_default_wallet_name: str = Field(default="LNbits wallet")
     lnbits_theme_options: List[str] = Field(
-        default=["riot", "classic", "flamingo", "mint", "salvador", "monochrome", "autumn"]
+        default=[
+            "riot",
+            "classic",
+            "flamingo",
+            "mint",
+            "salvador",
+            "monochrome",
+            "autumn",
+        ]
     )
     lnbits_custom_logo: str = Field(default=None)
     lnbits_ad_space_title: str = Field(default="Supported by")

@@ -13,9 +13,9 @@
   {% if HIDE_API and AD_SPACE %}
   <div class="col-12 col-md-8 q-gutter-y-md">
     {% elif HIDE_API %}
-    <div class="col-12 q-gutter-y-md" style="max-width:900px">
+    <div class="col-12 q-gutter-y-md" style="max-width: 900px">
       {% else %}
-      <div class="col-12 col-md-7 q-gutter-y-md" >
+      <div class="col-12 col-md-7 q-gutter-y-md">
         {% endif %}
         <q-card>
           <q-card-section>
@@ -57,21 +57,25 @@
             </h3>
           </q-card-section>
           <div class="row q-pb-md q-px-md q-col-gutter-md gt-sm">
-            <div class="col">
+            <div class="col q-px-md">
               <q-btn
                 unelevated
                 color="primary"
                 class="full-width"
                 @click="showReceiveDialog"
+                icon="file_download"
+                size="md"
                 >Receive</q-btn
               >
             </div>
-            <div class="col">
+            <div class="col q-px-md">
               <q-btn
                 unelevated
                 color="primary"
                 class="full-width"
                 @click="showParseDialog"
+                icon="qr_code_scanner"
+                size="md"
                 >Send</q-btn
               >
             </div>
@@ -490,10 +494,18 @@
               <q-btn v-close-popup flat color="grey" class="q-ml-auto"
                 >Cancel</q-btn
               >
-            
             </div>
             <q-separator></q-separator>
-            <center><q-btn outline color="primary" icon="photo_camera" round @click="showCamera"> </q-btn></center>
+            <center>
+              <q-btn
+                outline
+                color="primary"
+                icon="photo_camera"
+                round
+                @click="showCamera"
+              >
+              </q-btn>
+            </center>
             <q-spinner
               v-if="receive.status == 'loading'"
               color="primary"
@@ -668,18 +680,15 @@
             <q-input
               filled
               dense
-              v-model=""
-              onpaste="invoicePaste()"
+              v-model="invoicePasted"
+              @paste="onPaste"
               type="text"
-              style="width:100%;"
+              style="width: 100%"
               label="Paste invoice/payment request/lnurl *"
             >
             </q-input>
-            <div class="row q-mt-lg">
-
-            </div>
+            <div class="row q-mt-lg"></div>
           </div>
-        </div>
         </q-card>
       </q-dialog>
 
@@ -719,7 +728,7 @@
           @click="g.visibleDrawer = !g.visibleDrawer"
         >
         </q-tab>
-        
+
         <q-tab icon="file_download" label="Receive" @click="showReceiveDialog">
         </q-tab>
         <q-tab icon="qr_code_scanner" label="Send" @click="showParseDialog">
