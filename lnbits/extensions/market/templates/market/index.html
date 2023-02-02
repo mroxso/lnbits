@@ -825,7 +825,7 @@
           name: this.stallDialog.data.name,
           wallet: this.stallDialog.data.wallet,
           publickey: this.stallDialog.data.publickey || this.keys.pubkey,
-          currency: this.currencies.unit,
+          currency: this.stallDialog.data.currency,
           relays:
             this.stallDialog.data.relays &&
             this.stallDialog.data.relays.toString(),
