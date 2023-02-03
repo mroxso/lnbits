@@ -104,15 +104,13 @@ async def api_market_product_create(
 ):
     # For fiat currencies,
     # we multiply by data.fiat_base_multiplier (usually 100) to save the value in cents.
-    settings = await get_market_settings(user=wallet.wallet.user)
-    assert settings
+    # settings = await get_market_settings(user=wallet.wallet.user)
+    # assert settings
 
     stall = await get_market_stall(stall_id=data.stall)
     assert stall
-
     if stall.currency != "sat":
-        data.price *= settings.fiat_base_multiplier
-
+        data.price *= stall.fiat_base_multiplier
     if data.image:
         image_is_url = data.image.startswith("https://") or data.image.startswith(
             "http://"

@@ -189,9 +189,7 @@
   }
   const mapProducts = obj => {
     obj._data = _.clone(obj)
-    //if ('{{  currency }}' != 'sat') {
-    //  obj.price /= 100
-    //}
+    obj.price = new Intl.NumberFormat(LOCALE).format(obj.price)
     return obj
   }
   const mapZone = obj => {
@@ -431,16 +429,16 @@
               field: 'wallet'
             },
             {
+              name: 'currency',
+              align: 'left',
+              label: 'Unit',
+              field: 'currency'
+            },
+            {
               name: 'publickey',
               align: 'left',
               label: 'Public key',
               field: 'publickey'
-            },
-            {
-              name: 'privatekey',
-              align: 'left',
-              label: 'Private key',
-              field: 'privatekey'
             }
           ],
           pagination: {
@@ -819,7 +817,6 @@
           )
         this.stallDialog.data.relays = relays
         this.stallDialog.show = true
-        console.log(this.stallDialog.data)
       },
       sendStallFormData: function () {
         let data = {
@@ -835,7 +832,9 @@
             this.stallDialog.data.crelays.toString(),
           shippingzones: this.stallDialog.data.shippingzones
             .map(z => z.split('-')[0].trim())
-            .toString()
+            .toString(),
+          fiat_base_multiplier:
+            this.stallDialog.data.currency != 'sat' ? 100 : 1
         }
         if (this.stallDialog.data.id) {
           this.stallDialog.data = {...this.stallDialog.data, ...data}
@@ -948,23 +947,25 @@
           )
           .then(function (response) {
             if (response.data) {
-              self.products = response.data.map(mapProducts).map(p => {
-                let stall = self.stalls.find(s => s.id == p.stall)
-                console.log(stall)
-                if (stall.currency != 'sat') {
-                  p.price /= 100
-                }
-                return p
-              })
+              self.products = response.data.map(mapProducts)
             }
           })
           .catch(function (error) {
             LNbits.utils.notifyApiError(error)
           })
       },
+      setProductCurrency() {
+        this.productDialog.currency = this.stalls.find(
+          s => s.id == this.productDialog.data.stall
+        ).currency
+      },
       openProductUpdateDialog: function (linkId) {
         var self = this
         var link = _.findWhere(self.products, {id: linkId})
+        console.log(link)
+        self.productDialog.currency = self.stalls.find(
+          s => s.id == link.stall
+        ).currency
 
         self.productDialog.data = _.clone(link._data)
         if (self.productDialog.data.categories) {
@@ -980,10 +981,6 @@
         }
 
         self.productDialog.show = true
-        console.log(
-          self.productDialog.data,
-          self.stalls.find(s => s.id == link.stall)
-        )
       },
       sendProductFormData: function () {
         let _data = {...this.productDialog.data}
@@ -1040,11 +1037,6 @@
               return obj.id == data.id
             })
             let productData = mapProducts(response.data)
-            let currency = this.stalls.find(s => s.id == productData.stall)
-              .currency
-            if (currency != 'sat') {
-              productData.price /= 100
-            }
             self.products.push(productData)
             //SEND Nostr data
             try {
@@ -1073,11 +1065,6 @@
           )
           .then(async response => {
             let productData = mapProducts(response.data)
-            let currency = this.stalls.find(s => s.id == productData.stall)
-              .currency
-            if (currency != 'sat') {
-              productData.price /= 100
-            }
             self.products.push(productData)
             //SEND Nostr data
             try {
@@ -1574,7 +1561,9 @@
         if (keys) {
           this.keys = keys
         }
-        await this.nostrGetAllMessages()
+        if (this.diagonAlley) {
+          await this.nostrGetAllMessages()
+        }
         setInterval(() => {
           this.getAllMessages()
           this.getOrders()

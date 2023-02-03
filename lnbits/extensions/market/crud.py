@@ -50,6 +50,10 @@ async def create_market_product(data: createProduct) -> Products:
     )
     product = await get_market_product(product_id)
     assert product, "Newly created product couldn't be retrieved"
+    stall = await get_market_stall(product.stall)
+    assert stall
+    if stall.currency != "sat" and stall.fiat_base_multiplier:
+        product.price /= stall.fiat_base_multiplier
     return product
 
 
@@ -61,13 +65,28 @@ async def update_market_product(product_id: str, **kwargs) -> Optional[Products]
         (*kwargs.values(), product_id),
     )
     row = await db.fetchone("SELECT * FROM market.products WHERE id = ?", (product_id,))
+    product = Products(**row) if row else None
+    assert product
 
-    return Products(**row) if row else None
+    stall = await get_market_stall(product.stall)
+    assert stall
+    if stall.currency != "sat" and stall.fiat_base_multiplier:
+        product.price /= stall.fiat_base_multiplier
+
+    return product
 
 
 async def get_market_product(product_id: str) -> Optional[Products]:
     row = await db.fetchone("SELECT * FROM market.products WHERE id = ?", (product_id,))
-    return Products(**row) if row else None
+    product = Products(**row) if row else None
+    assert product
+
+    stall = await get_market_stall(product.stall)
+    assert stall
+    if stall.currency != "sat" and stall.fiat_base_multiplier:
+        product.price /= stall.fiat_base_multiplier
+
+    return product
 
 
 async def get_market_products(stall_ids: Union[str, List[str]]) -> List[Products]:
@@ -82,7 +101,16 @@ async def get_market_products(stall_ids: Union[str, List[str]]) -> List[Products
         """,
         (*stall_ids,),
     )
-    return [Products(**row) for row in rows]
+    products = [Products(**row) for row in rows]
+    assert products
+
+    for product in products:
+        stall = await get_market_stall(product.stall)
+        assert stall
+        if stall.currency != "sat" and stall.fiat_base_multiplier:
+            product.price /= stall.fiat_base_multiplier
+
+    return products
 
 
 async def delete_market_product(product_id: str) -> None:

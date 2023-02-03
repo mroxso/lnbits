@@ -1,4 +1,5 @@
 from typing import List, Optional
+from sqlite3 import Row
 
 from fastapi import Query
 from pydantic import BaseModel
@@ -24,6 +25,7 @@ class Stalls(BaseModel):
     relays: Optional[str]
     crelays: Optional[str]
     shippingzones: str
+    fiat_base_multiplier: int
 
 
 class createStalls(BaseModel):
@@ -34,6 +36,7 @@ class createStalls(BaseModel):
     relays: str = Query(None)
     crelays: str = Query(None)
     shippingzones: str = Query(...)
+    fiat_base_multiplier: int = Query(1, ge=1)
 
 
 class createProduct(BaseModel):
@@ -42,7 +45,7 @@ class createProduct(BaseModel):
     categories: str = Query(None)
     description: str = Query(None)
     image: str = Query(None)
-    price: float = Query(0, ge=0)
+    price: float = Query(1, ge=0.01)
     quantity: int = Query(0, ge=0)
 
 
