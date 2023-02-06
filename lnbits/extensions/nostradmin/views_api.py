@@ -23,41 +23,38 @@ from lnbits.decorators import (
 from lnbits.settings import settings
 from lnbits.core.models import Payment, User, Wallet
 from lnbits.helpers import urlsafe_short_hash
+from .tasks import init_relays
 
 
 @nostradmin_ext.get("/api/v1/relays")
 async def api_get_relays():  # type: ignore
-    # relays = RelayList(__root__=[])
-    # for url, r in client.relay_manager.relays.items():
-    #     status_text = (
-    #         f"⬆️ {r.num_sent_events} ⬇️ {r.num_received_events} ⚠️ {r.error_counter}"
-    #     )
-    #     connected_text = "🟢" if r.connected else "🔴"
-    #     relay_id = urlsafe_short_hash()
-    #     relays.__root__.append(
-    #         Relay(
-    #             id=relay_id,
-    #             url=url,
-    #             connected_string=connected_text,
-    #             status=status_text,
-    #             ping=r.ping,
-    #             connected=True,
-    #             active=True,
-    #         )
-    #     )
-    # return relays
-    relays = await get_relays()
-    return relays.__root__
+    relays = RelayList(__root__=[])
+    for url, r in client.relay_manager.relays.items():
+        status_text = (
+            f"⬆️ {r.num_sent_events} ⬇️ {r.num_received_events} ⚠️ {r.error_counter}"
+        )
+        connected_text = "🟢" if r.connected else "🔴"
+        relay_id = urlsafe_short_hash()
+        relays.__root__.append(
+            Relay(
+                id=relay_id,
+                url=url,
+                connected_string=connected_text,
+                status=status_text,
+                ping=r.ping,
+                connected=True,
+                active=True,
+            )
+        )
+    return relays
 
 
 @nostradmin_ext.post("/api/v1/relay")
 async def api_add_relay(relay: Relay):  # type: ignore
     assert relay.url, "no URL"
     relay.id = urlsafe_short_hash()
-    client.relays.append(relay.url)
-    client.relay_manager.add_relay(relay.url)
-    client.relay_manager.open_connections({"cert_reqs": ssl.CERT_NONE})
     await add_relay(relay)
+    await init_relays()
 
 
 @nostradmin_ext.delete("/api/v1/relay")
