@@ -7,16 +7,22 @@ from fastapi import Request
 from pydantic import BaseModel
 from pydantic.main import BaseModel
 from fastapi.param_functions import Query
+from dataclasses import dataclass
+from lnbits.helpers import urlsafe_short_hash
 
 
 class Relay(BaseModel):
-    id: str
-    url: str
-    connected: Optional[bool]
-    connected_string: Optional[str]
-    status: Optional[str]
-    active: Optional[bool]
-    ping: Optional[int]
+    id: Optional[str] = None
+    url: Optional[str] = None
+    connected: Optional[bool] = None
+    connected_string: Optional[str] = None
+    status: Optional[str] = None
+    active: Optional[bool] = None
+    ping: Optional[int] = None
+
+    def _init__(self):
+        if not self.id:
+            self.id = urlsafe_short_hash()
 
 
 class RelayList(BaseModel):

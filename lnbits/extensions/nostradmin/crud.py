@@ -17,7 +17,7 @@ async def get_relays() -> RelayList:
 async def add_relay(relay: Relay) -> None:
     await db.execute(
         f"""
-        INSERT INTO nostradmin.realsy (
+        INSERT INTO nostradmin.relays (
             id,
             url,
             active
@@ -26,3 +26,7 @@ async def add_relay(relay: Relay) -> None:
         """,
         (relay.id, relay.url, relay.active),
     )
+
+
+async def delete_relay(relay: Relay) -> None:
+    await db.execute("DELETE FROM nostradmin.relays WHERE id = ?", (relay.id,))

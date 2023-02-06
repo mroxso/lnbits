@@ -103,54 +103,6 @@
           </div>
         </div>
       </q-form>
-      <!-- 
-      <q-tab-panels v-model="listSelection" animated>
-        <q-tab-panel name="denylist">
-          <div class="text-h6">Relays in this list will NOT be used</div>
-          <q-form class="q-gutter-md q-y-md" @submit="setRelayList">
-            <div class="row">
-              <div class="col q-mx-lg">
-                <q-input
-                  v-model="setList.denylist"
-                  dense
-                  filled
-                  autogrow
-                ></q-input>
-              </div>
-              <div
-                class="col q-mx-lg items-align flex items-center justify-center"
-              >
-                <q-btn unelevated color="primary" type="submit">
-                  Update Deny List
-                </q-btn>
-              </div>
-            </div>
-          </q-form>
-        </q-tab-panel>
-
-        <q-tab-panel name="allowlist">
-          <div class="text-h6">ONLY relays in this list will be used</div>
-          <q-form class="q-gutter-md q-y-md" @submit="setRelayList">
-            <div class="row">
-              <div class="col q-mx-lg">
-                <q-input
-                  v-model="setList.allowlist"
-                  dense
-                  filled
-                  autogrow
-                ></q-input>
-              </div>
-              <div
-                class="col q-mx-lg items-align flex items-center justify-center"
-              >
-                <q-btn unelevated color="primary" type="submit">
-                  Update Allow List
-                </q-btn>
-              </div>
-            </div>
-          </q-form>
-        </q-tab-panel>
-      </q-tab-panels> -->
     </q-card>
   </div>
 
@@ -249,8 +201,46 @@
           })
       },
       addRelay: function () {
-        console.log("RELAY " + self.relayToAdd)
+        console.log("ADD RELAY " + this.relayToAdd)
+        var self = this
+        LNbits.api
+          .request(
+            'POST',
+            '/nostradmin/api/v1/relay',
+            self.g.user.wallets[0].adminkey,
+            {url:this.relayToAdd},
+          )
+          .then(function (response) {
+            if (response.data) {
+              console.log(response.data)
+              response.data.map(maplrelays)
+              self.nostrrelayLinks = response.data
+              console.log(self.nostrrelayLinks)
+            }
+          })
+          .catch(function (error) {
+            LNbits.utils.notifyApiError(error)
+          })
       },
+      deleteRelay: function (relay_id) {
+        console.log("DELETE RELAY " + relay_id)
+        var self = this
+        LNbits.api
+          .request(
+            'DELETE',
+            '/nostradmin/api/v1/relay',
+            self.g.user.wallets[0].adminkey,
+            {id:relay_id},
+          )
+          .then(function (response) {
+            if (response.data) {
+              console.log(response.data)
+            }
+          })
+          .catch(function (error) {
+            LNbits.utils.notifyApiError(error)
+          })
+      },      
       exportlnurldeviceCSV: function () {
         var self = this
         LNbits.utils.exportCSV(self.relayTable.columns, this.nostrLinks)
