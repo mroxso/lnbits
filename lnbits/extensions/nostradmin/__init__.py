@@ -25,11 +25,12 @@ def nostr_renderer():
 from .views import *  # noqa
 from .views_api import *  # noqa
 
-from .tasks import init_relays, send_data, receive_data
+from .tasks import init_relays, send_data, receive_data, subscribe_events
 
 
 def nostradmin_start():
     loop = asyncio.get_event_loop()
     loop.create_task(catch_everything_and_restart(init_relays))
-    loop.create_task(catch_everything_and_restart(send_data))
-    loop.create_task(catch_everything_and_restart(receive_data))
+    # loop.create_task(catch_everything_and_restart(send_data))
+    # loop.create_task(catch_everything_and_restart(receive_data))
+    loop.create_task(catch_everything_and_restart(subscribe_events))

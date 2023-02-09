@@ -3,10 +3,7 @@ from typing import List, Optional, Union
 from lnbits.helpers import urlsafe_short_hash
 import shortuuid
 from . import db
-from .models import (
-    Relay,
-    RelayList,
-)
+from .models import Relay, RelayList
 
 
 async def get_relays() -> RelayList:

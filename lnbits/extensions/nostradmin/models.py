@@ -4,8 +4,8 @@ from sqlite3 import Row
 from typing import Optional
 
 from fastapi import Request
-from pydantic import BaseModel
-from pydantic.main import BaseModel
+from pydantic import BaseModel, Field
+
 from fastapi.param_functions import Query
 from dataclasses import dataclass
 from lnbits.helpers import urlsafe_short_hash
@@ -27,6 +27,30 @@ class Relay(BaseModel):
 
 class RelayList(BaseModel):
     __root__: List[Relay]
+
+
+class Event(BaseModel):
+    content: str
+    pubkey: str
+    created_at: Optional[int]
+    kind: int
+    tags: Optional[List[List[str]]]
+    sig: str
+
+
+class Filter(BaseModel):
+    ids: Optional[List[str]]
+    kinds: Optional[List[int]]
+    authors: Optional[List[str]]
+    since: Optional[int]
+    until: Optional[int]
+    e: Optional[List[str]] = Field(alias="#e")
+    p: Optional[List[str]] = Field(alias="#p")
+    limit: Optional[int]
+
+
+class Filters(BaseModel):
+    __root__: List[Filter]
 
 
 # class nostrKeys(BaseModel):

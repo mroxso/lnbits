@@ -127,6 +127,8 @@
     obj.theTime = obj.time * 60 - (Date.now() / 1000 - obj.timestamp)
     obj.time = obj.time + 'mins'
 
+    obj.ping = obj.ping + ' ms'
+
     if (obj.time_elapsed) {
       obj.date = 'Time elapsed'
     } else {
