@@ -5,11 +5,14 @@ import json
 from fastapi import Request
 from fastapi.param_functions import Query
 from fastapi.params import Depends
+from fastapi.responses import JSONResponse
+
 from starlette.exceptions import HTTPException
+from sse_starlette.sse import EventSourceResponse
 
 from . import nostradmin_ext
 
-from .tasks import client
+from .tasks import client, received_event_queue
 
 from .crud import get_relays, add_relay, delete_relay
 from .models import RelayList, Relay, Event, Filter, Filters
@@ -67,7 +70,7 @@ async def api_delete_relay(relay: Relay):  # type: ignore
     await delete_relay(relay)
 
 
-# curl -k -X POST https://0.0.0.0:5001/nostradmin/api/v1/publish -d '{"id": "8889891a359994f80198fd662c0164252b20d8cd07c1e804737a02d74900cce6", "pubkey": "bd40bf53ae4bb068473bd41ed74b44ecd0456cc3d9c4fba5f9d26991bc8fae7e", "created_at": 1675940542, "kind": 4, "tags": [["p", "bd40bf53ae4bb068473bd41ed74b44ecd0456cc3d9c4fba5f9d26991bc8fae7e"]], "content": "1kh+nQ0MMfHeXNGpDaOmRA==?iv=yS2o4bNcajehMi3+EQxbgg==", "sig": "6f0f562a4e9462414eed2101ee02f88ebd703acb437670f8df31678a84051116d74edb2ce8389d336fef60996b3724530f0d998dbe77ce089b056a0190122a96"}' -H "X-Api-Key: f79aa34c8d6a433797319fcca081f8d5" -H "Content-type: application/json"
+# curl -k -X POST https://localhost:5001/nostradmin/api/v1/publish -d '{"id": "8889891a359994f80198fd662c0164252b20d8cd07c1e804737a02d74900cce6", "pubkey": "bd40bf53ae4bb068473bd41ed74b44ecd0456cc3d9c4fba5f9d26991bc8fae7e", "created_at": 1675940542, "kind": 4, "tags": [["p", "bd40bf53ae4bb068473bd41ed74b44ecd0456cc3d9c4fba5f9d26991bc8fae7e"]], "content": "1kh+nQ0MMfHeXNGpDaOmRA==?iv=yS2o4bNcajehMi3+EQxbgg==", "sig": "6f0f562a4e9462414eed2101ee02f88ebd703acb437670f8df31678a84051116d74edb2ce8389d336fef60996b3724530f0d998dbe77ce089b056a0190122a96"}' -H "X-Api-Key: f79aa34c8d6a433797319fcca081f8d5" -H "Content-type: application/json"
 @nostradmin_ext.post("/api/v1/publish")
 async def api_post_event(event: Event):
     nostr_event = NostrEvent(
@@ -89,7 +92,7 @@ async def api_post_event(event: Event):
     client.relay_manager.publish_event(dm)
 
 
-# curl -k -X POST https://0.0.0.0:5001/nostradmin/api/v1/filter -d '{"kinds": [4], "#p": ["bd40bf53ae4bb068473bd41ed74b44ecd0456cc3d9c4fba5f9d26991bc8fae7e"]}' -H "X-Api-Key: f79aa34c8d6a433797319fcca081f8d5" -H "Content-type: application/json"
+# curl -k -X POST https://localhost:5001/nostradmin/api/v1/filter -d '{"kinds": [4], "#p": ["bd40bf53ae4bb068473bd41ed74b44ecd0456cc3d9c4fba5f9d26991bc8fae7e"]}' -H "X-Api-Key: f79aa34c8d6a433797319fcca081f8d5" -H "Content-type: application/json"
 @nostradmin_ext.post("/api/v1/filter")
 async def api_subscribe(filter: Filter):
     nostr_filter = NostrFilter(
@@ -111,6 +114,23 @@ async def api_subscribe(filter: Filter):
     request.extend(filters.to_json_array())
     message = json.dumps(request)
     client.relay_manager.publish_message(message)
+
+    async def event_getter():
+        while True:
+            event = await received_event_queue.get()
+            if filters.match(event):
+                yield event
+
+    return EventSourceResponse(
+        event_getter(),
+        ping=20,
+        media_type="text/event-stream",
+    )
+    # if event:
+    #     return JSONResponse(
+    #         status_code=HTTPStatus.OK,
+    #         content={"detail": event.to_message()},
+    #     )
 
 
 # from .crud import (
