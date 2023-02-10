@@ -564,7 +564,10 @@
       },
       async nostrGetAllMessages() {
         //Subscribe to relays
-        let relays = this.getRelays()
+        await LNbits.api
+          .request('POST', '/nostradmin/api/v1/publish', null, event)
+          .then(res => {})
+        //let relays = this.getRelays()
         for (const url of relays) {
           try {
             const relay = nostr.relayInit(url)
@@ -587,10 +590,6 @@
                     timestamp: event.created_at,
                     pubkey: event.pubkey
                   })
-                  /*console.log({
-                    from: event.pubkey == this.keys.pubkey ? 'me' : 'customer',
-                    message: plaintext
-                  })*/
                 } catch (e) {
                   console.error('Unable to decrypt message', event, this.keys)
                   return
@@ -609,22 +608,22 @@
       // There's probably better suited kinds for this than 1, and could simplify the flow
       async sendToRelays(rawData = {}, type = null, action = null) {
         if (!this.diagonAlley) return
-        let publishToRelays = new Set()
+        //let publishToRelays = new Set()
         let data = {}
 
         if (type === 'stall') {
           data = nostrStallData(rawData, action)
-          publishToRelays = this.getRelays(rawData.id)
+          //publishToRelays = this.getRelays(rawData.id)
         } else if (type === 'product') {
           data = nostrProductData(rawData, action)
-          publishToRelays = this.getRelays(rawData.stall)
+          //publishToRelays = this.getRelays(rawData.stall)
         } else {
           data = initNostrMarket({
             stalls: this.stalls,
             shipping: this.zones,
             products: this.products
           })
-          publishToRelays = this.getRelays()
+          //publishToRelays = this.getRelays()
         }
 
         let event = {
@@ -636,7 +635,13 @@
         }
         event.id = nostr.getEventHash(event)
         event.sig = nostr.signEvent(event, this.keys.privkey)
-        console.log(event, publishToRelays)
+        await LNbits.api.request(
+          'POST',
+          '/nostradmin/api/v1/publish',
+          null,
+          event
+        )
+        //console.log(event, publishToRelays)
         // Commented out for testing, to avoid spamming relays
         /*
         for (const url of publishToRelays) {
@@ -1436,24 +1441,17 @@
         this.$refs.newMessage.focus()
       },
       async sendMessage() {
-        // this is way more tricky...
-        // need to figure out how to better display our messages in plain text, and incoming with encryption
-        // also, as we're saving messages to the DB, the full Nostr event format will be much more heavy in size
-        /*
-        let orderPublicKey = this.orders.find(
-          o => o.invoiceid == this.customerKey
-        ).pubkey
-
-        let ciphertext = await nostr.nip04.encrypt(
-          this.keys.privkey,
-          orderPublicKey,
-          this.newMessage
-        )
-
-        */
-        // if diagon alley mode is active create a propper event
-        /*
         if (this.diagonAlley) {
+          let orderPublicKey = this.orders.find(
+            o => o.invoiceid == this.customerKey
+          ).pubkey
+
+          let ciphertext = await nostr.nip04.encrypt(
+            this.keys.privkey,
+            orderPublicKey,
+            this.newMessage
+          )
+
           let event = {
             kind: 4,
             pubkey: this.keys.publickey,
@@ -1465,7 +1463,6 @@
           event.id = nostr.getEventHash(event)
           event.sig = await nostr.signEvent(event, this.keys.privatekey)
         }
-        */
 
         let message = {
           msg: this.newMessage,

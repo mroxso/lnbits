@@ -531,3 +531,10 @@ async def api_set_settings(
     user = wallet.wallet.user
 
     return await create_market_settings(user, data)
+
+
+## NOSTR
+@market_ext.post("/api/v1/event")
+async def api_nostr_event(event: dict):
+    if not event:
+        return
