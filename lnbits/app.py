@@ -27,21 +27,26 @@ from lnbits.settings import get_wallet_class, set_wallet_class, settings
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.middleware import SlowAPIMiddleware
 
-from .commands import (db_versions, load_disabled_extension_list,
-                       migrate_databases)
-from .core import (add_installed_extension, core_app, core_app_extra,
-                   update_installed_extension_state)
+from .commands import db_versions, load_disabled_extension_list, migrate_databases
+from .core import (
+    add_installed_extension,
+    core_app,
+    core_app_extra,
+    update_installed_extension_state,
+)
 from .core.services import check_admin_settings
 from .core.views.generic import core_html_routes
-from .extension_manager import (Extension, InstallableExtension,
-                                get_valid_extensions)
+from .extension_manager import Extension, InstallableExtension, get_valid_extensions
 from .helpers import template_renderer
-from .middleware import (ExtensionsRedirectMiddleware,
-                         InstalledExtensionMiddleware)
+from .middleware import ExtensionsRedirectMiddleware, InstalledExtensionMiddleware
 from .requestvars import g
-from .tasks import (catch_everything_and_restart, check_pending_payments,
-                    internal_invoice_listener, invoice_listener,
-                    webhook_handler)
+from .tasks import (
+    catch_everything_and_restart,
+    check_pending_payments,
+    internal_invoice_listener,
+    invoice_listener,
+    webhook_handler,
+)
 
 
 def create_app() -> FastAPI:
