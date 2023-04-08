@@ -14,7 +14,6 @@ import pyqrcode
 
 
 from fastapi import (
-    FastAPI,
     Body,
     Depends,
     Header,
