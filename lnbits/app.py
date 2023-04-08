@@ -8,7 +8,7 @@ import signal
 import sys
 import traceback
 from http import HTTPStatus
-from typing import Callable, List
+from typing import Callable, List, Optional
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -17,6 +17,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+
+from starlette.responses import JSONResponse, Response
 
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.middleware import SlowAPIMiddleware
@@ -96,16 +98,21 @@ def create_app() -> FastAPI:
     app.add_middleware(SlowAPIMiddleware)
     FastAPILimiter.init(app, limiter)
 
-
     @app.middleware("http")
     async def block_allow_ip_middleware(request: Request, call_next):
         response = await call_next(request)
-        logger.debug(response)
         if settings.lnbits_allowed_ips == [] and request.client.host in settings.lnbits_blocked_ips:
-            response.status_code=400
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "IP is blocked"},
+            )
         if settings.lnbits_allowed_ips != [] and request.client.host not in settings.lnbits_allowed_ips:
-            response.status_code=400
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "IP not permitted"},
+            )
         return response
+
     app.middleware("http")(block_allow_ip_middleware)
 
     # Allow registering new extensions routes without direct access to the `app` object
