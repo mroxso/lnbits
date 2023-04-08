@@ -8,14 +8,14 @@ import signal
 import sys
 import traceback
 from http import HTTPStatus
-from typing import Callable, List, Optional
+from typing import Callable, List
 
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.exceptions import HTTPException, RequestValidationError
+
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse
+
 from fastapi.staticfiles import StaticFiles
 
 from starlette.responses import JSONResponse, Response
@@ -53,10 +53,9 @@ from .tasks import (
     webhook_handler,
 )
 
+
 def create_app() -> FastAPI:
-
     configure_logger()
-
     app = FastAPI(
         title="LNbits API",
         description="API for LNbits, the free and open source bitcoin wallet and accounts system with plugins.",
@@ -92,7 +91,10 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
 
     # Rate limiter
-    limiter = Limiter(key_func=lambda request: request.client.host, default_limits=[settings.lnbits_rate_limit + "/minute"])
+    limiter = Limiter(
+        key_func=lambda request: request.client.host,
+        default_limits=[settings.lnbits_rate_limit + "/minute"],
+    )
     app.state.limiter = limiter
     app.add_exception_handler(429, _rate_limit_exceeded_handler)
     app.add_middleware(SlowAPIMiddleware)
@@ -101,12 +103,18 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def block_allow_ip_middleware(request: Request, call_next):
         response = await call_next(request)
-        if settings.lnbits_allowed_ips == [] and request.client.host in settings.lnbits_blocked_ips:
+        if (
+            settings.lnbits_allowed_ips == []
+            and request.client.host in settings.lnbits_blocked_ips
+        ):
             return JSONResponse(
                 status_code=403,
                 content={"detail": "IP is blocked"},
             )
-        if settings.lnbits_allowed_ips != [] and request.client.host not in settings.lnbits_allowed_ips:
+        if (
+            settings.lnbits_allowed_ips != []
+            and request.client.host not in settings.lnbits_allowed_ips
+        ):
             return JSONResponse(
                 status_code=403,
                 content={"detail": "IP not permitted"},
@@ -450,7 +458,10 @@ def configure_logger() -> None:
     log_level: str = "DEBUG" if settings.debug else "INFO"
     formatter = Formatter()
     logger.add(sys.stderr, level=log_level, format=formatter.format)
-    logger.add(lambda msg: asyncio.create_task(websocketUpdater(settings.super_user, msg)), format=formatter.format)
+    logger.add(
+        lambda msg: asyncio.create_task(websocketUpdater(settings.super_user, msg)),
+        format=formatter.format,
+    )
 
     logging.getLogger("uvicorn").handlers = [InterceptHandler()]
     logging.getLogger("uvicorn.access").handlers = [InterceptHandler()]

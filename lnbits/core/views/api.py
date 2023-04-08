@@ -87,9 +87,11 @@ from ..services import (
 )
 from ..tasks import api_invoice_listeners
 
+
 @core_app.get("/api/v1/health", status_code=HTTPStatus.OK)
 async def health():
     return
+
 
 @core_app.get("/api/v1/wallet")
 async def api_wallet(wallet: WalletTypeInfo = Depends(get_key_type)):
