@@ -4,11 +4,10 @@ from typing import List, Optional
 
 from fastapi import Depends, Query, Request, status
 from fastapi.exceptions import HTTPException
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, HTMLResponse, JSONResponse
 from fastapi.routing import APIRouter
 from loguru import logger
 from pydantic.types import UUID4
-from starlette.responses import HTMLResponse, JSONResponse
 
 from lnbits.core import db
 from lnbits.core.models import User
@@ -176,7 +175,7 @@ nothing: create everything<br>
 """,
 )
 async def wallet(
-    request: Request = Query(None),
+    request: Request,
     nme: Optional[str] = Query(None),
     usr: Optional[UUID4] = Query(None),
     wal: Optional[UUID4] = Query(None),
