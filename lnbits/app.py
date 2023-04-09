@@ -15,17 +15,17 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi_limiter import FastAPILimiter
 from loguru import logger
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.middleware import SlowAPIMiddleware
 from starlette.responses import JSONResponse
 
-from fastapi_limiter import FastAPILimiter
 from lnbits.core.crud import get_installed_extensions
 from lnbits.core.helpers import migrate_extension_database
 from lnbits.core.services import websocketUpdater
 from lnbits.core.tasks import register_task_listeners
 from lnbits.settings import get_wallet_class, set_wallet_class, settings
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.middleware import SlowAPIMiddleware
 
 from .commands import db_versions, load_disabled_extension_list, migrate_databases
 from .core import (

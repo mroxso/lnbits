@@ -11,8 +11,6 @@ from urllib.parse import ParseResult, parse_qs, urlencode, urlparse, urlunparse
 import async_timeout
 import httpx
 import pyqrcode
-
-
 from fastapi import (
     Body,
     Depends,
