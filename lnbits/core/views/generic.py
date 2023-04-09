@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from fastapi import Depends, Query, Request, status
 from fastapi.exceptions import HTTPException
-from fastapi.responses import FileResponse, RedirectResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.routing import APIRouter
 from loguru import logger
 from pydantic.types import UUID4
