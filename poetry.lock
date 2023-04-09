@@ -1263,30 +1263,30 @@ files = [
 
 [[package]]
 name = "pyln-client"
-version = "0.11.1"
+version = "23.2"
 description = "Client library and plugin library for Core Lightning"
 category = "main"
 optional = false
 python-versions = ">=3.7,<4.0"
 files = [
-    {file = "pyln-client-0.11.1.tar.gz", hash = "sha256:f5ea648840b030e2bbcf8c66ee72d25a5817f89854434a28d30e887547138c8e"},
-    {file = "pyln_client-0.11.1-py3-none-any.whl", hash = "sha256:497db443406b80c98c0434e2938eb1b2a17e88fd9aa63b018124068198df6141"},
+    {file = "pyln_client-23.2-py3-none-any.whl", hash = "sha256:b7bfef80cc0203af8105836f0692eb9dfdbd242122a142f49f6d3bc793c0cc7a"},
+    {file = "pyln_client-23.2.tar.gz", hash = "sha256:a6973f5a6ebdadd0ae6110b119dd80f0afea07e8b4f3d4faff6a1dd74a0cc5b8"},
 ]
 
 [package.dependencies]
-pyln-bolt7 = ">=1.0,<2.0"
-pyln-proto = ">=0.11,<0.12"
+pyln-bolt7 = ">=1.0"
+pyln-proto = ">=0.12"
 
 [[package]]
 name = "pyln-proto"
-version = "0.11.1"
+version = "23.2"
 description = "This package implements some of the Lightning Network protocol in pure python. It is intended for protocol testing and some minor tooling only. It is not deemed secure enough to handle any amount of real funds (you have been warned!)."
 category = "main"
 optional = false
 python-versions = ">=3.7,<4.0"
 files = [
-    {file = "pyln-proto-0.11.1.tar.gz", hash = "sha256:9bed240f41917c4fd526b767218a77d0fbe69242876eef72c35a856796f922d6"},
-    {file = "pyln_proto-0.11.1-py3-none-any.whl", hash = "sha256:27b2e04a81b894f69018279c0ce4aa2e7ccd03b86dd9783f96b9d8d1498c8393"},
+    {file = "pyln_proto-23.2-py3-none-any.whl", hash = "sha256:90979646e9d12262d525fbfd7eeec837553c6247ac619ab81f4e49f965b22bfd"},
+    {file = "pyln_proto-23.2.tar.gz", hash = "sha256:3be76c27f74373c8621cac8979b5e874e073fe33182233322a5e9edb2edb8a38"},
 ]
 
 [package.dependencies]
@@ -1885,4 +1885,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10 | ^3.9"
-content-hash = "a7e6f961dfbd2202a20ba1545a8d167d3a377658f9bb67555024dd79f3489432"
+content-hash = "c54b51361403302041a6ed1989998ca57313213956b733b6aa439b78e071dbd6"
