@@ -24,6 +24,7 @@ def list_parse_fallback(v):
 
 
 class LNbitsSettings(BaseSettings):
+    @classmethod
     def validate(cls, val):
         if type(val) == str:
             val = val.split(",") if val else []
@@ -109,6 +110,8 @@ class FakeWalletFundingSource(LNbitsSettings):
 class LNbitsFundingSource(LNbitsSettings):
     lnbits_endpoint: str = Field(default="https://legend.lnbits.com")
     lnbits_key: Optional[str] = Field(default=None)
+    lnbits_admin_key: Optional[str] = Field(default=None)
+    lnbits_invoice_key: Optional[str] = Field(default=None)
 
 
 class ClicheFundingSource(LNbitsSettings):
@@ -151,11 +154,14 @@ class LnPayFundingSource(LNbitsSettings):
     lnpay_api_endpoint: Optional[str] = Field(default=None)
     lnpay_api_key: Optional[str] = Field(default=None)
     lnpay_wallet_key: Optional[str] = Field(default=None)
+    lnpay_admin_key: Optional[str] = Field(default=None)
 
 
 class OpenNodeFundingSource(LNbitsSettings):
     opennode_api_endpoint: Optional[str] = Field(default=None)
     opennode_key: Optional[str] = Field(default=None)
+    opennode_admin_key: Optional[str] = Field(default=None)
+    opennode_invoice_key: Optional[str] = Field(default=None)
 
 
 class SparkFundingSource(LNbitsSettings):
@@ -215,8 +221,9 @@ class EditableSettings(
         "lnbits_admin_extensions",
         pre=True,
     )
+    @classmethod
     def validate_editable_settings(cls, val):
-        return super().validate(cls, val)
+        return super().validate(val)
 
     @classmethod
     def from_dict(cls, d: dict):
@@ -288,8 +295,9 @@ class ReadOnlySettings(
         "lnbits_allowed_funding_sources",
         pre=True,
     )
+    @classmethod
     def validate_readonly_settings(cls, val):
-        return super().validate(cls, val)
+        return super().validate(val)
 
     @classmethod
     def readonly_fields(cls):

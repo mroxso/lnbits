@@ -1,7 +1,7 @@
 import asyncio
 import json
 from io import BytesIO
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, TypedDict
 from urllib.parse import parse_qs, urlparse
 
 import httpx
@@ -17,6 +17,7 @@ from lnbits.helpers import url_for
 from lnbits.settings import (
     FAKE_WALLET,
     EditableSettings,
+    SuperSettings,
     get_wallet_class,
     readonly_variables,
     send_admin_user_to_saas,
@@ -27,6 +28,7 @@ from lnbits.wallets.base import PaymentResponse, PaymentStatus
 from . import db
 from .crud import (
     check_internal,
+    check_internal_pending,
     create_account,
     create_admin_settings,
     create_payment,
@@ -41,11 +43,6 @@ from .crud import (
     update_super_user,
 )
 from .models import Payment
-
-try:
-    from typing import TypedDict
-except ImportError:  # pragma: nocover
-    from typing_extensions import TypedDict
 
 
 class PaymentFailure(Exception):
@@ -153,7 +150,11 @@ async def pay_invoice(
             extra=extra,
         )
 
-        # check_internal() returns the checking_id of the invoice we're waiting for
+        # we check if an internal invoice exists that has already been paid (not pending anymore)
+        if not await check_internal_pending(invoice.payment_hash, conn=conn):
+            raise PaymentFailure("Internal invoice already paid.")
+
+        # check_internal() returns the checking_id of the invoice we're waiting for (pending only)
         internal_checking_id = await check_internal(invoice.payment_hash, conn=conn)
         if internal_checking_id:
             logger.debug(f"creating temporary internal payment with id {internal_id}")
@@ -169,16 +170,21 @@ async def pay_invoice(
             logger.debug(f"creating temporary payment with id {temp_id}")
             # create a temporary payment here so we can check if
             # the balance is enough in the next step
-            await create_payment(
-                checking_id=temp_id,
-                fee=-fee_reserve_msat,
-                conn=conn,
-                **payment_kwargs,
-            )
+            try:
+                await create_payment(
+                    checking_id=temp_id,
+                    fee=-fee_reserve_msat,
+                    conn=conn,
+                    **payment_kwargs,
+                )
+            except Exception as e:
+                logger.error(f"could not create temporary payment: {e}")
+                # happens if the same wallet tries to pay an invoice twice
+                raise PaymentFailure("Could not make payment.")
 
         # do the balance check
         wallet = await get_wallet(wallet_id, conn=conn)
-        assert wallet
+        assert wallet, "Wallet for balancecheck could not be fetched"
         if wallet.balance_msat < 0:
             logger.debug("balance is too low, deleting temporary payment")
             if not internal_checking_id and wallet.balance_msat > -fee_reserve_msat:
@@ -326,19 +332,19 @@ async def perform_lnurlauth(
 
         return b
 
-    def encode_strict_der(r_int, s_int, order):
+    def encode_strict_der(r: int, s: int, order: int):
         # if s > order/2 verification will fail sometimes
         # so we must fix it here (see https://github.com/indutny/elliptic/blob/e71b2d9359c5fe9437fbf46f1f05096de447de57/lib/elliptic/ec/index.js#L146-L147)
-        if s_int > order // 2:
-            s_int = order - s_int
+        if s > order // 2:
+            s = order - s
 
         # now we do the strict DER encoding copied from
         # https://github.com/KiriKiri/bip66 (without any checks)
-        r = int_to_bytes_suitable_der(r_int)
-        s = int_to_bytes_suitable_der(s_int)
+        r_temp = int_to_bytes_suitable_der(r)
+        s_temp = int_to_bytes_suitable_der(s)
 
-        r_len = len(r)
-        s_len = len(s)
+        r_len = len(r_temp)
+        s_len = len(s_temp)
         sign_len = 6 + r_len + s_len
 
         signature = BytesIO()
@@ -346,16 +352,17 @@ async def perform_lnurlauth(
         signature.write((sign_len - 2).to_bytes(1, "big", signed=False))
         signature.write(0x02.to_bytes(1, "big", signed=False))
         signature.write(r_len.to_bytes(1, "big", signed=False))
-        signature.write(r)
+        signature.write(r_temp)
         signature.write(0x02.to_bytes(1, "big", signed=False))
         signature.write(s_len.to_bytes(1, "big", signed=False))
-        signature.write(s)
+        signature.write(s_temp)
 
         return signature.getvalue()
 
     sig = key.sign_digest_deterministic(k1, sigencode=encode_strict_der)
 
     async with httpx.AsyncClient() as client:
+        assert key.verifying_key, "LNURLauth verifying_key does not exist"
         r = await client.get(
             callback,
             params={
@@ -459,7 +466,7 @@ def update_cached_settings(sets_dict: dict):
         setattr(settings, "super_user", sets_dict["super_user"])
 
 
-async def init_admin_settings(super_user: str = None):
+async def init_admin_settings(super_user: Optional[str] = None) -> SuperSettings:
     account = None
     if super_user:
         account = await get_account(super_user)
