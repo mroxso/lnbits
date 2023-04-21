@@ -1,14 +1,17 @@
 import asyncio
 import json
+from typing import AsyncGenerator, Dict, Optional
+
 import httpx
-from os import getenv
-from typing import Optional, Dict, AsyncGenerator
+from loguru import logger
+
+from lnbits.settings import settings
 
 from .base import (
-    StatusResponse,
     InvoiceResponse,
     PaymentResponse,
     PaymentStatus,
+    StatusResponse,
     Wallet,
 )
 
@@ -17,13 +20,14 @@ class LNbitsWallet(Wallet):
     """https://github.com/lnbits/lnbits"""
 
     def __init__(self):
-        self.endpoint = getenv("LNBITS_ENDPOINT")
-
+        self.endpoint = settings.lnbits_endpoint
         key = (
-            getenv("LNBITS_KEY")
-            or getenv("LNBITS_ADMIN_KEY")
-            or getenv("LNBITS_INVOICE_KEY")
+            settings.lnbits_key
+            or settings.lnbits_admin_key
+            or settings.lnbits_invoice_key
         )
+        if not self.endpoint or not key:
+            raise Exception("cannot initialize lnbits wallet")
         self.key = {"X-Api-Key": key}
 
     async def status(self) -> StatusResponse:
@@ -54,12 +58,16 @@ class LNbitsWallet(Wallet):
         amount: int,
         memo: Optional[str] = None,
         description_hash: Optional[bytes] = None,
+        unhashed_description: Optional[bytes] = None,
+        **kwargs,
     ) -> InvoiceResponse:
-        data: Dict = {"out": False, "amount": amount}
+        data: Dict = {"out": False, "amount": amount, "memo": memo or ""}
+        if kwargs.get("expiry"):
+            data["expiry"] = kwargs["expiry"]
         if description_hash:
             data["description_hash"] = description_hash.hex()
-        else:
-            data["memo"] = memo or ""
+        if unhashed_description:
+            data["unhashed_description"] = unhashed_description.hex()
 
         async with httpx.AsyncClient() as client:
             r = await client.post(
@@ -86,17 +94,27 @@ class LNbitsWallet(Wallet):
                 url=f"{self.endpoint}/api/v1/payments",
                 headers=self.key,
                 json={"out": True, "bolt11": bolt11},
-                timeout=100,
+                timeout=None,
             )
-        ok, checking_id, fee_msat, error_message = not r.is_error, None, 0, None
+        ok, checking_id, _, _, error_message = (
+            not r.is_error,
+            None,
+            None,
+            None,
+            None,
+        )
 
         if r.is_error:
             error_message = r.json()["detail"]
+            return PaymentResponse(None, None, None, None, error_message)
         else:
             data = r.json()
-            checking_id = data["checking_id"]
+            checking_id = data["payment_hash"]
 
-        return PaymentResponse(ok, checking_id, fee_msat, error_message)
+        # we do this to get the fee and preimage
+        payment: PaymentStatus = await self.get_payment_status(checking_id)
+
+        return PaymentResponse(ok, checking_id, payment.fee_msat, payment.preimage)
 
     async def get_invoice_status(self, checking_id: str) -> PaymentStatus:
         try:
@@ -119,8 +137,11 @@ class LNbitsWallet(Wallet):
 
         if r.is_error:
             return PaymentStatus(None)
+        data = r.json()
+        if "paid" not in data and "details" not in data:
+            return PaymentStatus(None)
 
-        return PaymentStatus(r.json()["paid"])
+        return PaymentStatus(data["paid"], data["details"]["fee"], data["preimage"])
 
     async def paid_invoices_stream(self) -> AsyncGenerator[str, None]:
         url = f"{self.endpoint}/api/v1/payments/sse"
@@ -128,21 +149,31 @@ class LNbitsWallet(Wallet):
         while True:
             try:
                 async with httpx.AsyncClient(timeout=None, headers=self.key) as client:
-                    async with client.stream("GET", url) as r:
+                    del client.headers[
+                        "accept-encoding"
+                    ]  # we have to disable compression for SSEs
+                    async with client.stream(
+                        "GET", url, content="text/event-stream"
+                    ) as r:
+                        sse_trigger = False
                         async for line in r.aiter_lines():
-                            if line.startswith("data:"):
-                                try:
-                                    data = json.loads(line[5:])
-                                except json.decoder.JSONDecodeError:
-                                    continue
-
-                                if type(data) is not dict:
-                                    continue
-
-                                yield data["payment_hash"]  # payment_hash
+                            # The data we want to listen to is of this shape:
+                            # event: payment-received
+                            # data: {.., "payment_hash" : "asd"}
+                            if line.startswith("event: payment-received"):
+                                sse_trigger = True
+                                continue
+                            elif sse_trigger and line.startswith("data:"):
+                                data = json.loads(line[len("data:") :])
+                                sse_trigger = False
+                                yield data["payment_hash"]
+                            else:
+                                sse_trigger = False
 
             except (OSError, httpx.ReadError, httpx.ConnectError, httpx.ReadTimeout):
                 pass
 
-            print("lost connection to lnbits /payments/sse, retrying in 5 seconds")
+            logger.error(
+                "lost connection to lnbits /payments/sse, retrying in 5 seconds"
+            )
             await asyncio.sleep(5)

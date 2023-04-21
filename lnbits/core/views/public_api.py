@@ -1,25 +1,15 @@
 import asyncio
 import datetime
 from http import HTTPStatus
-from urllib.parse import urlparse
 
 from fastapi import HTTPException
-from starlette.requests import Request
-from starlette.responses import HTMLResponse
+from loguru import logger
 
 from lnbits import bolt11
 
 from .. import core_app
 from ..crud import get_standalone_payment
 from ..tasks import api_invoice_listeners
-
-
-@core_app.get("/.well-known/lnurlp/{username}")
-async def lnaddress(username: str, request: Request):
-    from lnbits.extensions.lnaddress.lnurl import lnurl_response
-
-    domain = urlparse(str(request.url)).netloc
-    return await lnurl_response(username, domain, request)
 
 
 @core_app.get("/public/v1/payment/{payment_hash}")
@@ -45,24 +35,23 @@ async def api_public_payment_longpolling(payment_hash):
 
     payment_queue = asyncio.Queue(0)
 
-    print("adding standalone invoice listener", payment_hash, payment_queue)
-    api_invoice_listeners.append(payment_queue)
+    logger.debug(f"adding standalone invoice listener for hash: {payment_hash}")
+    api_invoice_listeners[payment_hash] = payment_queue
 
     response = None
 
-    async def payment_info_receiver(cancel_scope):
-        async for payment in payment_queue.get():
+    async def payment_info_receiver():
+        for payment in await payment_queue.get():
             if payment.payment_hash == payment_hash:
                 nonlocal response
                 response = {"status": "paid"}
-                cancel_scope.cancel()
 
     async def timeouter(cancel_scope):
         await asyncio.sleep(45)
         cancel_scope.cancel()
 
-    asyncio.create_task(payment_info_receiver())
-    asyncio.create_task(timeouter())
+    cancel_scope = asyncio.create_task(payment_info_receiver())
+    asyncio.create_task(timeouter(cancel_scope))
 
     if response:
         return response

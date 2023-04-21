@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import NamedTuple, Optional, AsyncGenerator, Coroutine
+from typing import AsyncGenerator, Coroutine, NamedTuple, Optional
 
 
 class StatusResponse(NamedTuple):
@@ -18,13 +18,15 @@ class PaymentResponse(NamedTuple):
     # when ok is None it means we don't know if this succeeded
     ok: Optional[bool] = None
     checking_id: Optional[str] = None  # payment_hash, rcp_id
-    fee_msat: int = 0
+    fee_msat: Optional[int] = None
     preimage: Optional[str] = None
     error_message: Optional[str] = None
 
 
 class PaymentStatus(NamedTuple):
     paid: Optional[bool] = None
+    fee_msat: Optional[int] = None
+    preimage: Optional[str] = None
 
     @property
     def pending(self) -> bool:
@@ -32,14 +34,14 @@ class PaymentStatus(NamedTuple):
 
     @property
     def failed(self) -> bool:
-        return self.paid == False
+        return self.paid is False
 
     def __str__(self) -> str:
-        if self.paid == True:
+        if self.paid is True:
             return "settled"
-        elif self.paid == False:
+        elif self.paid is False:
             return "failed"
-        elif self.paid == None:
+        elif self.paid is None:
             return "still pending"
         else:
             return "unknown (should never happen)"

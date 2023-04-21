@@ -15,7 +15,7 @@ __pycache__
 .webassets-cache
 htmlcov
 test-reports
-tests/data
+tests/data/*.sqlite3
 
 *.swo
 *.swp
@@ -23,13 +23,26 @@ tests/data
 *.pyc
 *.env
 .env
-.venv
-venv
 
+data
 *.sqlite3
 .pyre*
 
 __bundle__
 
+coverage.xml
 node_modules
 lnbits/static/bundle.*
+docker
+
+# Nix
+*result*
+
+# fly.io
+fly.toml
+
+lnbits-backup.zip
+
+# Ignore extensions (post installable extension PR)
+extensions/
+upgrades/

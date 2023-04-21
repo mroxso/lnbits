@@ -8,41 +8,21 @@ nav_order: 3
 Backend wallets
 ===============
 
-LNbits can run on top of many lightning-network funding sources. Currently there is support for
-CLightning, LND, LNbits, LNPay, lntxbot and OpenNode, with more being added regularily.
+LNbits can run on top of many lightning-network funding sources. Currently there is support for CoreLightning, LND, LNbits, LNPay and OpenNode, with more being added regularly.
 
 A backend wallet can be configured using the following LNbits environment variables:
 
 
-### CLightning
+### CoreLightning
 
-Using this wallet requires the installation of the `pylightning` Python package.
-If you want to use LNURLp you should use SparkWallet because of an issue with description_hash and CLightning.
-
-- `LNBITS_BACKEND_WALLET_CLASS`: **CLightningWallet**
-- `CLIGHTNING_RPC`: /file/path/lightning-rpc
+- `LNBITS_BACKEND_WALLET_CLASS`: **CoreLightningWallet**
+- `CORELIGHTNING_RPC`: /file/path/lightning-rpc
 
 ### Spark (c-lightning)
 
 - `LNBITS_BACKEND_WALLET_CLASS`: **SparkWallet**
 - `SPARK_URL`: http://10.147.17.230:9737/rpc
 - `SPARK_TOKEN`: secret_access_key
-
-### LND (gRPC)
-
-Using this wallet requires the installation of the `grpcio` and `protobuf` Python packages.
-
-- `LNBITS_BACKEND_WALLET_CLASS`: **LndWallet**
-- `LND_GRPC_ENDPOINT`: ip_address
-- `LND_GRPC_PORT`: port
-- `LND_GRPC_CERT`: /file/path/tls.cert
-- `LND_GRPC_MACAROON`: /file/path/admin.macaroon or Bech64/Hex
-
-You can also use an AES-encrypted macaroon (more info) instead by using
-
-- `LND_GRPC_MACAROON_ENCRYPTED`: eNcRyPtEdMaCaRoOn
-
-To encrypt your macaroon, run `./venv/bin/python lnbits/wallets/macaroon/macaroon.py`.
 
 ### LND (REST)
 
@@ -55,6 +35,20 @@ or
 
 - `LND_REST_MACAROON_ENCRYPTED`: eNcRyPtEdMaCaRoOn
 
+### LND (gRPC)
+
+- `LNBITS_BACKEND_WALLET_CLASS`: **LndWallet**
+- `LND_GRPC_ENDPOINT`: ip_address
+- `LND_GRPC_PORT`: port
+- `LND_GRPC_CERT`: /file/path/tls.cert
+- `LND_GRPC_MACAROON`: /file/path/admin.macaroon or Bech64/Hex
+
+You can also use an AES-encrypted macaroon (more info) instead by using
+
+- `LND_GRPC_MACAROON_ENCRYPTED`: eNcRyPtEdMaCaRoOn
+
+To encrypt your macaroon, run `poetry run python lnbits/wallets/macaroon/macaroon.py`.
+
 ### LNbits
 
 - `LNBITS_BACKEND_WALLET_CLASS`: **LNbitsWallet**
@@ -63,19 +57,12 @@ or
 
 ### LNPay
 
-For the invoice listener to work you have a publicly accessible URL in your LNbits and must set up [LNPay webhooks](https://dashboard.lnpay.co/webhook/) pointing to `<your LNbits host>/wallet/webhook` with the "Wallet Receive" event and no secret. For example, `https://mylnbits/wallet/webhook` will be the Endpoint Url that gets notified about the payment. 
+For the invoice listener to work you have a publicly accessible URL in your LNbits and must set up [LNPay webhooks](https://dashboard.lnpay.co/webhook/) pointing to `<your LNbits host>/wallet/webhook` with the "Wallet Receive" event and no secret. For example, `https://mylnbits/wallet/webhook` will be the Endpoint Url that gets notified about the payment.
 
 - `LNBITS_BACKEND_WALLET_CLASS`: **LNPayWallet**
 - `LNPAY_API_ENDPOINT`: https://api.lnpay.co/v1/
 - `LNPAY_API_KEY`: sak_apiKey
 - `LNPAY_WALLET_KEY`: waka_apiKey
-
-
-### lntxbot
-
-- `LNBITS_BACKEND_WALLET_CLASS`: **LntxbotWallet**
-- `LNTXBOT_API_ENDPOINT`: https://lntxbot.com/
-- `LNTXBOT_KEY`: lntxbotAdminApiKey
 
 
 ### OpenNode
@@ -85,3 +72,8 @@ For the invoice to work you must have a publicly accessible URL in your LNbits. 
 - `LNBITS_BACKEND_WALLET_CLASS`: **OpenNodeWallet**
 - `OPENNODE_API_ENDPOINT`: https://api.opennode.com/
 - `OPENNODE_KEY`: opennodeAdminApiKey
+
+
+### Cliche Wallet
+
+- `CLICHE_ENDPOINT`: ws://127.0.0.1:12000

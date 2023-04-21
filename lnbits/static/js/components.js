@@ -242,8 +242,42 @@ Vue.component('lnbits-extension-list', {
   }
 })
 
+Vue.component('lnbits-admin-ui', {
+  data: function () {
+    return {
+      extensions: [],
+      user: null
+    }
+  },
+  template: `
+    <q-list v-if="user && user.admin" dense class="lnbits-drawer__q-list">
+      <q-item-label header>Admin</q-item-label>
+      <q-item clickable tag="a" :href="['/admin?usr=', user.id].join('')">
+        <q-item-section side>
+          <q-icon name="admin_panel_settings" color="grey-5" size="md"></q-icon>
+        </q-item-section>
+        <q-item-section>
+          <q-item-label lines="1" class="text-caption" v-text="$t('manage_server')"></q-item-label>
+        </q-item-section>
+      </q-item>
+    </q-list>
+  `,
+
+  created: function () {
+    if (window.user) {
+      this.user = LNbits.map.user(window.user)
+    }
+  }
+})
+
 Vue.component('lnbits-payment-details', {
   props: ['payment'],
+  mixins: [windowMixin],
+  data: function () {
+    return {
+      LNBITS_DENOMINATION: LNBITS_DENOMINATION
+    }
+  },
   template: `
     <div class="q-py-md" style="text-align: left">
       <div class="row justify-center q-mb-md">
@@ -252,27 +286,34 @@ Vue.component('lnbits-payment-details', {
         </q-badge>
       </div>
       <div class="row">
-        <div class="col-3"><b>Date</b>:</div>
+        <div class="col-3"><b v-text="$t('created')"></b>:</div>
         <div class="col-9">{{ payment.date }} ({{ payment.dateFrom }})</div>
       </div>
       <div class="row">
-        <div class="col-3"><b>Description</b>:</div>
+        <div class="col-3"><b v-text="$t('expiry')"></b>:</div>
+        <div class="col-9">{{ payment.expirydate }} ({{ payment.expirydateFrom }})</div>
+      </div>
+      <div class="row">
+        <div class="col-3"><b v-text="$t('description')"></b>:</div>
         <div class="col-9">{{ payment.memo }}</div>
       </div>
       <div class="row">
-        <div class="col-3"><b>Amount</b>:</div>
+        <div class="col-3"><b v-text="$t('amount')"></b>:</div>
         <div class="col-9">{{ (payment.amount / 1000).toFixed(3) }} {{LNBITS_DENOMINATION}}</div>
       </div>
       <div class="row">
-        <div class="col-3"><b>Fee</b>:</div>
+        <div class="col-3"><b v-text="$t('fee')"></b>:</div>
         <div class="col-9">{{ (payment.fee / 1000).toFixed(3) }} {{LNBITS_DENOMINATION}}</div>
       </div>
       <div class="row">
-        <div class="col-3"><b>Payment hash</b>:</div>
-        <div class="col-9 text-wrap mono">{{ payment.payment_hash }}</div>
+        <div class="col-3"><b v-text="$t('payment_hash')"></b>:</div>
+        <div class="col-9 text-wrap mono">
+            {{ payment.payment_hash }}
+            <q-icon name="content_copy" @click="copyText(payment.payment_hash)" size="1em" color="grey" class="q-mb-xs cursor-pointer" />
+      </div>
       </div>
       <div class="row" v-if="payment.webhook">
-        <div class="col-3"><b>Webhook</b>:</div>
+        <div class="col-3"><b v-text="$t('webhook')"></b>:</div>
         <div class="col-9 text-wrap mono">
           {{ payment.webhook }}
           <q-badge :color="webhookStatusColor" text-color="white">
@@ -281,7 +322,7 @@ Vue.component('lnbits-payment-details', {
         </div>
       </div>
       <div class="row" v-if="hasPreimage">
-        <div class="col-3"><b>Payment proof</b>:</div>
+        <div class="col-3"><b v-text="$t('payment_proof')"></b>:</div>
         <div class="col-9 text-wrap mono">{{ payment.preimage }}</div>
       </div>
       <div class="row" v-for="entry in extras">

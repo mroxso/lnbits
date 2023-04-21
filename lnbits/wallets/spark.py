@@ -1,15 +1,19 @@
 import asyncio
+import hashlib
 import json
-import httpx
 import random
-from os import getenv
-from typing import Optional, AsyncGenerator
+from typing import AsyncGenerator, Optional
+
+import httpx
+from loguru import logger
+
+from lnbits.settings import settings
 
 from .base import (
-    StatusResponse,
     InvoiceResponse,
     PaymentResponse,
     PaymentStatus,
+    StatusResponse,
     Wallet,
 )
 
@@ -24,8 +28,9 @@ class UnknownError(Exception):
 
 class SparkWallet(Wallet):
     def __init__(self):
-        self.url = getenv("SPARK_URL").replace("/rpc", "")
-        self.token = getenv("SPARK_TOKEN")
+        assert settings.spark_url, "spark url does not exist"
+        self.url = settings.spark_url.replace("/rpc", "")
+        self.token = settings.spark_token
 
     def __getattr__(self, key):
         async def call(*args, **kwargs):
@@ -42,14 +47,22 @@ class SparkWallet(Wallet):
 
             try:
                 async with httpx.AsyncClient() as client:
+                    assert self.token, "spark wallet token does not exist"
                     r = await client.post(
                         self.url + "/rpc",
                         headers={"X-Access": self.token},
                         json={"method": key, "params": params},
-                        timeout=40,
+                        timeout=60 * 60 * 24,
                     )
-            except (OSError, httpx.ConnectError, httpx.RequestError) as exc:
-                raise UnknownError("error connecting to spark: " + str(exc))
+                    r.raise_for_status()
+            except (
+                OSError,
+                httpx.ConnectError,
+                httpx.RequestError,
+                httpx.HTTPError,
+                httpx.TimeoutException,
+            ) as exc:
+                raise UnknownError(f"error connecting to spark: {exc}")
 
             try:
                 data = r.json()
@@ -83,8 +96,10 @@ class SparkWallet(Wallet):
         amount: int,
         memo: Optional[str] = None,
         description_hash: Optional[bytes] = None,
+        unhashed_description: Optional[bytes] = None,
+        **kwargs,
     ) -> InvoiceResponse:
-        label = "lbs{}".format(random.random())
+        label = f"lbs{random.random()}"
         checking_id = label
 
         try:
@@ -94,12 +109,19 @@ class SparkWallet(Wallet):
                     label=label,
                     description_hash=description_hash.hex(),
                 )
+            elif unhashed_description:
+                r = await self.invoicewithdescriptionhash(
+                    msatoshi=amount * 1000,
+                    label=label,
+                    description_hash=hashlib.sha256(unhashed_description).hexdigest(),
+                )
             else:
                 r = await self.invoice(
                     msatoshi=amount * 1000,
                     label=label,
                     description=memo or "",
                     exposeprivatechannels=True,
+                    expiry=kwargs.get("expiry"),
                 )
             ok, payment_request, error_message = True, r["bolt11"], ""
         except (SparkError, UnknownError) as e:
@@ -109,40 +131,53 @@ class SparkWallet(Wallet):
 
     async def pay_invoice(self, bolt11: str, fee_limit_msat: int) -> PaymentResponse:
         try:
-            r = await self.pay(bolt11)
+            r = await self.pay(
+                bolt11=bolt11,
+                maxfee=fee_limit_msat,
+            )
+            fee_msat = -int(r["msatoshi_sent"] - r["msatoshi"])
+            preimage = r["payment_preimage"]
+            return PaymentResponse(True, r["payment_hash"], fee_msat, preimage, None)
+
         except (SparkError, UnknownError) as exc:
             listpays = await self.listpays(bolt11)
-            if listpays:
-                pays = listpays["pays"]
+            if not listpays:
+                return PaymentResponse(False, None, None, None, str(exc))
 
-                if len(pays) == 0:
-                    return PaymentResponse(False, None, 0, None, str(exc))
+            pays = listpays["pays"]
 
-                pay = pays[0]
-                payment_hash = pay["payment_hash"]
+            if len(pays) == 0:
+                return PaymentResponse(False, None, None, None, str(exc))
 
-                if len(pays) > 1:
-                    raise SparkError(
-                        f"listpays({payment_hash}) returned an unexpected response: {listpays}"
-                    )
+            pay = pays[0]
+            payment_hash = pay["payment_hash"]
 
-                if pay["status"] == "failed":
-                    return PaymentResponse(False, None, 0, None, str(exc))
-                elif pay["status"] == "pending":
-                    return PaymentResponse(None, payment_hash, 0, None, None)
-                elif pay["status"] == "complete":
-                    r = pay
-                    r["payment_preimage"] = pay["preimage"]
-                    r["msatoshi"] = int(pay["amount_msat"][0:-4])
-                    r["msatoshi_sent"] = int(pay["amount_sent_msat"][0:-4])
-                    # this may result in an error if it was paid previously
-                    # our database won't allow the same payment_hash to be added twice
-                    # this is good
-                    pass
+            if len(pays) > 1:
+                raise SparkError(
+                    f"listpays({payment_hash}) returned an unexpected response: {listpays}"
+                )
 
-        fee_msat = r["msatoshi_sent"] - r["msatoshi"]
-        preimage = r["payment_preimage"]
-        return PaymentResponse(True, r["payment_hash"], fee_msat, preimage, None)
+            if pay["status"] == "failed":
+                return PaymentResponse(False, None, None, None, str(exc))
+
+            if pay["status"] == "pending":
+                return PaymentResponse(None, payment_hash, None, None, None)
+
+            if pay["status"] == "complete":
+                r = pay
+                r["payment_preimage"] = pay["preimage"]
+                r["msatoshi"] = int(pay["amount_msat"][0:-4])
+                r["msatoshi_sent"] = int(pay["amount_sent_msat"][0:-4])
+                # this may result in an error if it was paid previously
+                # our database won't allow the same payment_hash to be added twice
+                # this is good
+                fee_msat = -int(r["msatoshi_sent"] - r["msatoshi"])
+                preimage = r["payment_preimage"]
+                return PaymentResponse(
+                    True, r["payment_hash"], fee_msat, preimage, None
+                )
+            else:
+                return PaymentResponse(False, None, None, None, str(exc))
 
     async def get_invoice_status(self, checking_id: str) -> PaymentStatus:
         try:
@@ -178,8 +213,12 @@ class SparkWallet(Wallet):
         if r["pays"][0]["payment_hash"] == checking_id:
             status = r["pays"][0]["status"]
             if status == "complete":
-                return PaymentStatus(True)
-            elif status == "failed":
+                fee_msat = -(
+                    int(r["pays"][0]["amount_sent_msat"][0:-4])
+                    - int(r["pays"][0]["amount_msat"][0:-4])
+                )
+                return PaymentStatus(True, fee_msat, r["pays"][0]["preimage"])
+            if status == "failed":
                 return PaymentStatus(False)
             return PaymentStatus(None)
         raise KeyError("supplied an invalid checking_id")
@@ -196,8 +235,14 @@ class SparkWallet(Wallet):
                                 data = json.loads(line[5:])
                                 if "pay_index" in data and data.get("status") == "paid":
                                     yield data["label"]
-            except (OSError, httpx.ReadError, httpx.ConnectError, httpx.ReadTimeout):
+            except (
+                OSError,
+                httpx.ReadError,
+                httpx.ConnectError,
+                httpx.ReadTimeout,
+                httpx.HTTPError,
+            ):
                 pass
 
-            print("lost connection to spark /stream, retrying in 5 seconds")
+            logger.error("lost connection to spark /stream, retrying in 5 seconds")
             await asyncio.sleep(5)

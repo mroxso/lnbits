@@ -1,6 +1,14 @@
 /* globals crypto, moment, Vue, axios, Quasar, _ */
 
+Vue.use(VueI18n)
+
 window.LOCALE = 'en'
+window.i18n = new VueI18n({
+  locale: window.LOCALE,
+  fallbackLocale: window.LOCALE,
+  messages: window.localisation
+})
+
 window.EventHub = new Vue()
 window.LNbits = {
   api: {
@@ -126,7 +134,7 @@ window.LNbits = {
           'isAdminOnly',
           'name',
           'shortDescription',
-          'icon',
+          'tile',
           'contributors',
           'hidden'
         ],
@@ -138,9 +146,11 @@ window.LNbits = {
     user: function (data) {
       var obj = {
         id: data.id,
+        admin: data.admin,
         email: data.email,
         extensions: data.extensions,
-        wallets: data.wallets
+        wallets: data.wallets,
+        admin: data.admin
       }
       var mapWallet = this.wallet
       obj.wallets = obj.wallets
@@ -184,6 +194,7 @@ window.LNbits = {
         bolt11: data.bolt11,
         preimage: data.preimage,
         payment_hash: data.payment_hash,
+        expiry: data.expiry,
         extra: data.extra,
         wallet_id: data.wallet_id,
         webhook: data.webhook,
@@ -195,6 +206,11 @@ window.LNbits = {
         'YYYY-MM-DD HH:mm'
       )
       obj.dateFrom = moment(obj.date).fromNow()
+      obj.expirydate = Quasar.utils.date.formatDate(
+        new Date(obj.expiry * 1000),
+        'YYYY-MM-DD HH:mm'
+      )
+      obj.expirydateFrom = moment(obj.expirydate).fromNow()
       obj.msat = obj.amount
       obj.sat = obj.msat / 1000
       obj.tag = obj.extra.tag
@@ -261,7 +277,7 @@ window.LNbits = {
         return data
       }
     },
-    exportCSV: function (columns, data) {
+    exportCSV: function (columns, data, fileName) {
       var wrapCsvValue = function (val, formatFn) {
         var formatted = formatFn !== void 0 ? formatFn(val) : val
 
@@ -295,7 +311,7 @@ window.LNbits = {
         .join('\r\n')
 
       var status = Quasar.utils.exportFile(
-        'table-export.csv',
+        `${fileName || 'table-export'}.csv`,
         content,
         'text/csv'
       )
@@ -312,10 +328,12 @@ window.LNbits = {
 }
 
 window.windowMixin = {
+  i18n: window.i18n,
   data: function () {
     return {
       toggleSubs: true,
       g: {
+        offline: !navigator.onLine,
         visibleDrawer: false,
         extensions: [],
         user: null,
@@ -327,6 +345,10 @@ window.windowMixin = {
   },
 
   methods: {
+    changeLanguage: function (newValue) {
+      window.i18n.locale = newValue
+      this.$q.localStorage.set('lnbits.lang', newValue)
+    },
     changeColor: function (newValue) {
       document.body.setAttribute('data-theme', newValue)
       this.$q.localStorage.set('lnbits.theme', newValue)
@@ -346,17 +368,32 @@ window.windowMixin = {
     }
   },
   created: function () {
-    
-    if(this.$q.localStorage.getItem('lnbits.darkMode') == true || this.$q.localStorage.getItem('lnbits.darkMode') == false){
+    if (
+      this.$q.localStorage.getItem('lnbits.darkMode') == true ||
+      this.$q.localStorage.getItem('lnbits.darkMode') == false
+    ) {
       this.$q.dark.set(this.$q.localStorage.getItem('lnbits.darkMode'))
-    }
-    else{
+    } else {
       this.$q.dark.set(true)
     }
     this.g.allowedThemes = window.allowedThemes ?? ['bitcoin']
 
+    let locale = this.$q.localStorage.getItem('lnbits.lang')
+    if (locale) {
+      window.LOCALE = locale
+      window.i18n.locale = locale
+    }
+
+    addEventListener('offline', event => {
+      this.g.offline = true
+    })
+
+    addEventListener('online', event => {
+      this.g.offline = false
+    })
+
     // failsafe if admin changes themes halfway
-    if (!this.$q.localStorage.getItem('lnbits.theme')){
+    if (!this.$q.localStorage.getItem('lnbits.theme')) {
       this.changeColor(this.g.allowedThemes[0])
     }
     if (
@@ -383,7 +420,7 @@ window.windowMixin = {
     }
     if (window.extensions) {
       var user = this.g.user
-      this.g.extensions = Object.freeze(
+      const extensions = Object.freeze(
         window.extensions
           .map(function (data) {
             return window.LNbits.map.extension(data)
@@ -404,9 +441,13 @@ window.windowMixin = {
             return obj
           })
           .sort(function (a, b) {
-            return a.name > b.name
+            const nameA = a.name.toUpperCase()
+            const nameB = b.name.toUpperCase()
+            return nameA < nameB ? -1 : nameA > nameB ? 1 : 0
           })
       )
+
+      this.g.extensions = extensions
     }
   }
 }

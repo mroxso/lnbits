@@ -1,13 +1,20 @@
-import json
-import hmac
+import datetime
 import hashlib
-from lnbits.helpers import url_for
-from ecdsa import SECP256k1, SigningKey  # type: ignore
-from lnurl import encode as lnurl_encode  # type: ignore
-from typing import List, NamedTuple, Optional, Dict
+import hmac
+import json
+import time
 from sqlite3 import Row
+from typing import Callable, Dict, List, Optional
+
+from ecdsa import SECP256k1, SigningKey
+from lnurl import encode as lnurl_encode
+from loguru import logger
 from pydantic import BaseModel
-from lnbits.settings import WALLET
+
+from lnbits.db import Connection
+from lnbits.helpers import url_for
+from lnbits.settings import get_wallet_class, settings
+from lnbits.wallets.base import PaymentStatus
 
 
 class Wallet(BaseModel):
@@ -38,8 +45,8 @@ class Wallet(BaseModel):
             return ""
 
     def lnurlauth_key(self, domain: str) -> SigningKey:
-        hashing_key = hashlib.sha256(self.id.encode("utf-8")).digest()
-        linking_key = hmac.digest(hashing_key, domain.encode("utf-8"), "sha256")
+        hashing_key = hashlib.sha256(self.id.encode()).digest()
+        linking_key = hmac.digest(hashing_key, domain.encode(), "sha256")
 
         return SigningKey.from_string(
             linking_key, curve=SECP256k1, hashfunc=hashlib.sha256
@@ -58,6 +65,7 @@ class User(BaseModel):
     wallets: List[Wallet] = []
     password: Optional[str] = None
     admin: bool = False
+    super_user: bool = False
 
     @property
     def wallet_ids(self) -> List[str]:
@@ -66,6 +74,16 @@ class User(BaseModel):
     def get_wallet(self, wallet_id: str) -> Optional["Wallet"]:
         w = [wallet for wallet in self.wallets if wallet.id == wallet_id]
         return w[0] if w else None
+
+    @classmethod
+    def is_extension_for_user(cls, ext: str, user: str) -> bool:
+        if ext not in settings.lnbits_admin_extensions:
+            return True
+        if user == settings.super_user:
+            return True
+        if user in settings.lnbits_admin_users:
+            return True
+        return False
 
 
 class Payment(BaseModel):
@@ -78,7 +96,8 @@ class Payment(BaseModel):
     bolt11: str
     preimage: str
     payment_hash: str
-    extra: Optional[Dict] = {}
+    expiry: Optional[float]
+    extra: Dict = {}
     wallet_id: str
     webhook: Optional[str]
     webhook_status: Optional[int]
@@ -96,6 +115,7 @@ class Payment(BaseModel):
             fee=row["fee"],
             memo=row["memo"],
             time=row["time"],
+            expiry=row["expiry"],
             wallet_id=row["wallet"],
             webhook=row["webhook"],
             webhook_status=row["webhook_status"],
@@ -103,6 +123,8 @@ class Payment(BaseModel):
 
     @property
     def tag(self) -> Optional[str]:
+        if self.extra is None:
+            return ""
         return self.extra.get("tag")
 
     @property
@@ -122,9 +144,26 @@ class Payment(BaseModel):
         return self.amount < 0
 
     @property
+    def is_expired(self) -> bool:
+        return self.expiry < time.time() if self.expiry else False
+
+    @property
     def is_uncheckable(self) -> bool:
-        return self.checking_id.startswith("temp_") or self.checking_id.startswith(
-            "internal_"
+        return self.checking_id.startswith("internal_")
+
+    async def update_status(
+        self,
+        status: PaymentStatus,
+        conn: Optional[Connection] = None,
+    ) -> None:
+        from .crud import update_payment_details
+
+        await update_payment_details(
+            checking_id=self.checking_id,
+            pending=status.pending,
+            fee=status.fee_msat,
+            preimage=status.preimage,
+            conn=conn,
         )
 
     async def set_pending(self, pending: bool) -> None:
@@ -132,28 +171,47 @@ class Payment(BaseModel):
 
         await update_payment_status(self.checking_id, pending)
 
-    async def check_pending(self) -> None:
+    async def check_status(
+        self,
+        conn: Optional[Connection] = None,
+    ) -> PaymentStatus:
         if self.is_uncheckable:
-            return
+            return PaymentStatus(None)
 
+        logger.debug(
+            f"Checking {'outgoing' if self.is_out else 'incoming'} pending payment {self.checking_id}"
+        )
+
+        WALLET = get_wallet_class()
         if self.is_out:
             status = await WALLET.get_payment_status(self.checking_id)
         else:
             status = await WALLET.get_invoice_status(self.checking_id)
 
-        if self.is_out and status.failed:
-            print(f" - deleting outgoing failed payment {self.checking_id}: {status}")
-            await self.delete()
-        elif not status.pending:
-            print(
-                f" - marking '{'in' if self.is_in else 'out'}' {self.checking_id} as not pending anymore: {status}"
-            )
-            await self.set_pending(status.pending)
+        logger.debug(f"Status: {status}")
 
-    async def delete(self) -> None:
+        if self.is_in and status.pending and self.is_expired and self.expiry:
+            expiration_date = datetime.datetime.fromtimestamp(self.expiry)
+            logger.debug(
+                f"Deleting expired incoming pending payment {self.checking_id}: expired {expiration_date}"
+            )
+            await self.delete(conn)
+        elif self.is_out and status.failed:
+            logger.warning(
+                f"Deleting outgoing failed payment {self.checking_id}: {status}"
+            )
+            await self.delete(conn)
+        elif not status.pending:
+            logger.info(
+                f"Marking '{'in' if self.is_in else 'out'}' {self.checking_id} as not pending anymore: {status}"
+            )
+            await self.update_status(status, conn=conn)
+        return status
+
+    async def delete(self, conn: Optional[Connection] = None) -> None:
         from .crud import delete_payment
 
-        await delete_payment(self.checking_id)
+        await delete_payment(self.checking_id, conn=conn)
 
 
 class BalanceCheck(BaseModel):
@@ -164,3 +222,19 @@ class BalanceCheck(BaseModel):
     @classmethod
     def from_row(cls, row: Row):
         return cls(wallet=row["wallet"], service=row["service"], url=row["url"])
+
+
+class CoreAppExtra:
+    register_new_ext_routes: Callable
+
+
+class TinyURL(BaseModel):
+    id: str
+    url: str
+    endless: bool
+    wallet: str
+    time: float
+
+    @classmethod
+    def from_row(cls, row: Row):
+        return cls(**dict(row))

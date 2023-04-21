@@ -148,27 +148,27 @@ new Vue({
           {
             name: 'memo',
             align: 'left',
-            label: 'Memo',
+            label: this.$t('memo'),
             field: 'memo'
           },
           {
             name: 'date',
             align: 'left',
-            label: 'Date',
+            label: this.$t('date'),
             field: 'date',
             sortable: true
           },
           {
             name: 'sat',
             align: 'right',
-            label: 'Amount (' + LNBITS_DENOMINATION + ')',
+            label: this.$t('amount') + ' (' + LNBITS_DENOMINATION + ')',
             field: 'sat',
             sortable: true
           },
           {
             name: 'fee',
             align: 'right',
-            label: 'Fee (m' + LNBITS_DENOMINATION + ')',
+            label: this.$t('fee') + ' (m' + LNBITS_DENOMINATION + ')',
             field: 'fee'
           }
         ],
@@ -232,6 +232,9 @@ new Vue({
         generateChart(this.$refs.canvas, this.payments)
       })
     },
+    focusInput(el) {
+      this.$nextTick(() => this.$refs[el].focus())
+    },
     showReceiveDialog: function () {
       this.receive.show = true
       this.receive.status = 'pending'
@@ -243,6 +246,7 @@ new Vue({
       this.receive.paymentChecker = null
       this.receive.minMax = [0, 2100000000000000]
       this.receive.lnurl = null
+      this.focusInput('setAmount')
     },
     showParseDialog: function () {
       this.parse.show = true
@@ -255,25 +259,30 @@ new Vue({
       this.parse.camera.show = false
     },
     updateBalance: function (credit) {
-      if (LNBITS_DENOMINATION != 'sats') {
-        credit = credit * 100
-      }
       LNbits.api
-        .request('PUT', '/api/v1/wallet/balance/' + credit, this.g.wallet.inkey)
-        .catch(err => {
-          LNbits.utils.notifyApiError(err)
-        })
-        .then(response => {
-          let data = response.data
-          if (data.status === 'ERROR') {
-            this.$q.notify({
-              timeout: 5000,
-              type: 'warning',
-              message: `Failed to update.`
-            })
-            return
+        .request(
+          'PUT',
+          '/admin/api/v1/topup/?usr=' + this.g.user.id,
+          this.g.user.wallets[0].adminkey,
+          {
+            amount: credit,
+            id: this.g.wallet.id
           }
-          this.balance = this.balance + data.balance
+        )
+        .then(response => {
+          this.$q.notify({
+            type: 'positive',
+            message:
+              'Success! Added ' +
+              credit +
+              ' sats to ' +
+              this.g.user.wallets[0].id,
+            icon: null
+          })
+          this.balance += parseInt(credit)
+        })
+        .catch(function (error) {
+          LNbits.utils.notifyApiError(error)
         })
     },
     closeReceiveDialog: function () {
@@ -357,6 +366,35 @@ new Vue({
           this.receive.status = 'pending'
         })
     },
+    onInitQR: async function (promise) {
+      try {
+        await promise
+      } catch (error) {
+        let mapping = {
+          NotAllowedError: 'ERROR: you need to grant camera access permission',
+          NotFoundError: 'ERROR: no camera on this device',
+          NotSupportedError:
+            'ERROR: secure context required (HTTPS, localhost)',
+          NotReadableError: 'ERROR: is the camera already in use?',
+          OverconstrainedError: 'ERROR: installed cameras are not suitable',
+          StreamApiNotSupportedError:
+            'ERROR: Stream API is not supported in this browser',
+          InsecureContextError:
+            'ERROR: Camera access is only permitted in secure context. Use HTTPS or localhost rather than HTTP.'
+        }
+        let valid_error = Object.keys(mapping).filter(key => {
+          return error.name === key
+        })
+        let camera_error = valid_error
+          ? mapping[valid_error]
+          : `ERROR: Camera error (${error.name})`
+        this.parse.camera.show = false
+        this.$q.notify({
+          message: camera_error,
+          type: 'negative'
+        })
+      }
+    },
     decodeQR: function (res) {
       this.parse.data.request = res
       this.decodeRequest()
@@ -365,9 +403,9 @@ new Vue({
     decodeRequest: function () {
       this.parse.show = true
       let req = this.parse.data.request.toLowerCase()
-      if (this.parse.data.request.startsWith('lightning:')) {
+      if (this.parse.data.request.toLowerCase().startsWith('lightning:')) {
         this.parse.data.request = this.parse.data.request.slice(10)
-      } else if (this.parse.data.request.startsWith('lnurl:')) {
+      } else if (this.parse.data.request.toLowerCase().startsWith('lnurl:')) {
         this.parse.data.request = this.parse.data.request.slice(6)
       } else if (req.indexOf('lightning=lnurl1') !== -1) {
         this.parse.data.request = this.parse.data.request
@@ -428,6 +466,16 @@ new Vue({
         return
       }
 
+      // BIP-21 support
+      if (this.parse.data.request.toLowerCase().includes('lightning')) {
+        this.parse.data.request = this.parse.data.request.split('lightning=')[1]
+
+        // fail safe to check there's nothing after the lightning= part
+        if (this.parse.data.request.includes('&')) {
+          this.parse.data.request = this.parse.data.request.split('&')[0]
+        }
+      }
+
       let invoice
       try {
         invoice = decode(this.parse.data.request)
@@ -472,7 +520,7 @@ new Vue({
     payInvoice: function () {
       let dismissPaymentMsg = this.$q.notify({
         timeout: 0,
-        message: 'Processing payment...'
+        message: this.$t('processing_payment')
       })
 
       LNbits.api
@@ -618,10 +666,10 @@ new Vue({
     },
     updateWalletName: function () {
       let newName = this.newName
+      let adminkey = this.g.wallet.adminkey
       if (!newName || !newName.length) return
-      // let data = {name: newName}
       LNbits.api
-        .request('PUT', '/api/v1/wallet/' + newName, this.g.wallet.adminkey, {})
+        .request('PUT', '/api/v1/wallet/' + newName, adminkey, {})
         .then(res => {
           this.newName = ''
           this.$q.notify({
@@ -668,7 +716,17 @@ new Vue({
       })
     },
     exportCSV: function () {
-      LNbits.utils.exportCSV(this.paymentsTable.columns, this.payments)
+      // status is important for export but it is not in paymentsTable
+      // because it is manually added with payment detail link and icons
+      // and would cause duplication in the list
+      let columns = structuredClone(this.paymentsTable.columns)
+      columns.unshift({
+        name: 'pending',
+        align: 'left',
+        label: 'Pending',
+        field: 'pending'
+      })
+      LNbits.utils.exportCSV(columns, this.payments)
     }
   },
   watch: {
@@ -691,10 +749,7 @@ new Vue({
   },
   mounted: function () {
     // show disclaimer
-    if (
-      this.$refs.disclaimer &&
-      !this.$q.localStorage.getItem('lnbits.disclaimerShown')
-    ) {
+    if (!this.$q.localStorage.getItem('lnbits.disclaimerShown')) {
       this.disclaimerDialog.show = true
       this.$q.localStorage.set('lnbits.disclaimerShown', true)
     }
@@ -705,3 +760,11 @@ new Vue({
     )
   }
 })
+
+if (navigator.serviceWorker != null) {
+  navigator.serviceWorker
+    .register('/service-worker.js')
+    .then(function (registration) {
+      console.log('Registered events at scope: ', registration.scope)
+    })
+}

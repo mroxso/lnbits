@@ -1,16 +1,20 @@
-import json
 import asyncio
-from fastapi.exceptions import HTTPException
-import httpx
-from os import getenv
+import hashlib
+import json
 from http import HTTPStatus
-from typing import Optional, Dict, AsyncGenerator
+from typing import AsyncGenerator, Dict, Optional
+
+import httpx
+from fastapi import HTTPException
+from loguru import logger
+
+from lnbits.settings import settings
 
 from .base import (
-    StatusResponse,
     InvoiceResponse,
     PaymentResponse,
     PaymentStatus,
+    StatusResponse,
     Wallet,
 )
 
@@ -19,10 +23,15 @@ class LNPayWallet(Wallet):
     """https://docs.lnpay.co/"""
 
     def __init__(self):
-        endpoint = getenv("LNPAY_API_ENDPOINT", "https://lnpay.co/v1")
+        endpoint = settings.lnpay_api_endpoint
+        wallet_key = settings.lnpay_wallet_key or settings.lnpay_admin_key
+
+        if not endpoint or not wallet_key or not settings.lnpay_api_key:
+            raise Exception("cannot initialize lnpay")
+
+        self.wallet_key = wallet_key
         self.endpoint = endpoint[:-1] if endpoint.endswith("/") else endpoint
-        self.wallet_key = getenv("LNPAY_WALLET_KEY") or getenv("LNPAY_ADMIN_KEY")
-        self.auth = {"X-Api-Key": getenv("LNPAY_API_KEY")}
+        self.auth = {"X-Api-Key": settings.lnpay_api_key}
 
     async def status(self) -> StatusResponse:
         url = f"{self.endpoint}/wallet/{self.wallet_key}"
@@ -49,10 +58,14 @@ class LNPayWallet(Wallet):
         amount: int,
         memo: Optional[str] = None,
         description_hash: Optional[bytes] = None,
+        unhashed_description: Optional[bytes] = None,
+        **kwargs,
     ) -> InvoiceResponse:
         data: Dict = {"num_satoshis": f"{amount}"}
         if description_hash:
             data["description_hash"] = description_hash.hex()
+        elif unhashed_description:
+            data["description_hash"] = hashlib.sha256(unhashed_description).hexdigest()
         else:
             data["memo"] = memo or ""
 
@@ -82,7 +95,7 @@ class LNPayWallet(Wallet):
                 f"{self.endpoint}/wallet/{self.wallet_key}/withdraw",
                 headers=self.auth,
                 json={"payment_request": bolt11},
-                timeout=180,
+                timeout=None,
             )
 
         try:
@@ -93,7 +106,7 @@ class LNPayWallet(Wallet):
             )
 
         if r.is_error:
-            return PaymentResponse(False, None, 0, None, data["message"])
+            return PaymentResponse(False, None, None, None, data["message"])
 
         checking_id = data["lnTx"]["id"]
         fee_msat = 0
@@ -106,28 +119,33 @@ class LNPayWallet(Wallet):
     async def get_payment_status(self, checking_id: str) -> PaymentStatus:
         async with httpx.AsyncClient() as client:
             r = await client.get(
-                url=f"{self.endpoint}/lntx/{checking_id}?fields=settled",
+                url=f"{self.endpoint}/lntx/{checking_id}",
                 headers=self.auth,
             )
 
         if r.is_error:
             return PaymentStatus(None)
 
+        data = r.json()
+        preimage = data["payment_preimage"]
+        fee_msat = data["fee_msat"]
         statuses = {0: None, 1: True, -1: False}
-        return PaymentStatus(statuses[r.json()["settled"]])
+        return PaymentStatus(statuses[data["settled"]], fee_msat, preimage)
 
     async def paid_invoices_stream(self) -> AsyncGenerator[str, None]:
-        self.queue = asyncio.Queue(0)
+        self.queue: asyncio.Queue = asyncio.Queue(0)
         while True:
             value = await self.queue.get()
             yield value
 
     async def webhook_listener(self):
-        text: str = await request.get_data()
+        # TODO: request.get_data is undefined, was it something with Flask or quart?
+        # probably issue introduced when refactoring?
+        text: str = await request.get_data()  # type: ignore
         try:
             data = json.loads(text)
         except json.decoder.JSONDecodeError:
-            print(f"got something wrong on lnpay webhook endpoint: {text[:200]}")
+            logger.error(f"got something wrong on lnpay webhook endpoint: {text[:200]}")
             data = None
         if (
             type(data) is not dict

@@ -1,44 +1,48 @@
 from http import HTTPStatus
+from typing import Optional, Type
 
-from cerberus import Validator  # type: ignore
-from fastapi import status
-from fastapi.exceptions import HTTPException
+from fastapi import HTTPException, Request, Security, status
 from fastapi.openapi.models import APIKey, APIKeyIn
-from fastapi.params import Security
-from fastapi.security.api_key import APIKeyHeader, APIKeyQuery
+from fastapi.security import APIKeyHeader, APIKeyQuery
 from fastapi.security.base import SecurityBase
+from pydantic import BaseModel
 from pydantic.types import UUID4
-from starlette.requests import Request
 
 from lnbits.core.crud import get_user, get_wallet_for_key
 from lnbits.core.models import User, Wallet
+from lnbits.db import Filter, Filters
 from lnbits.requestvars import g
-from lnbits.settings import LNBITS_ALLOWED_USERS, LNBITS_ADMIN_USERS, LNBITS_ADMIN_EXTENSIONS
+from lnbits.settings import settings
 
 
+# TODO: fix type ignores
 class KeyChecker(SecurityBase):
     def __init__(
-        self, scheme_name: str = None, auto_error: bool = True, api_key: str = None
+        self,
+        scheme_name: Optional[str] = None,
+        auto_error: bool = True,
+        api_key: Optional[str] = None,
     ):
         self.scheme_name = scheme_name or self.__class__.__name__
         self.auto_error = auto_error
         self._key_type = "invoice"
         self._api_key = api_key
         if api_key:
-            self.model: APIKey = APIKey(
-                **{"in": APIKeyIn.query},
+            key = APIKey(
+                **{"in": APIKeyIn.query},  # type: ignore
                 name="X-API-KEY",
                 description="Wallet API Key - QUERY",
             )
         else:
-            self.model: APIKey = APIKey(
-                **{"in": APIKeyIn.header},
+            key = APIKey(
+                **{"in": APIKeyIn.header},  # type: ignore
                 name="X-API-KEY",
                 description="Wallet API Key - HEADER",
             )
-        self.wallet = None
+        self.wallet = None  # type: ignore
+        self.model: APIKey = key
 
-    async def __call__(self, request: Request) -> Wallet:
+    async def __call__(self, request: Request):
         try:
             key_value = (
                 self._api_key
@@ -48,7 +52,7 @@ class KeyChecker(SecurityBase):
             # FIXME: Find another way to validate the key. A fetch from DB should be avoided here.
             #        Also, we should not return the wallet here - thats silly.
             #        Possibly store it in a Redis DB
-            self.wallet = await get_wallet_for_key(key_value, self._key_type)
+            self.wallet = await get_wallet_for_key(key_value, self._key_type)  # type: ignore
             if not self.wallet:
                 raise HTTPException(
                     status_code=HTTPStatus.UNAUTHORIZED,
@@ -71,7 +75,10 @@ class WalletInvoiceKeyChecker(KeyChecker):
     """
 
     def __init__(
-        self, scheme_name: str = None, auto_error: bool = True, api_key: str = None
+        self,
+        scheme_name: Optional[str] = None,
+        auto_error: bool = True,
+        api_key: Optional[str] = None,
     ):
         super().__init__(scheme_name, auto_error, api_key)
         self._key_type = "invoice"
@@ -87,7 +94,10 @@ class WalletAdminKeyChecker(KeyChecker):
     """
 
     def __init__(
-        self, scheme_name: str = None, auto_error: bool = True, api_key: str = None
+        self,
+        scheme_name: Optional[str] = None,
+        auto_error: bool = True,
+        api_key: Optional[str] = None,
     ):
         super().__init__(scheme_name, auto_error, api_key)
         self._key_type = "admin"
@@ -122,42 +132,52 @@ async def get_key_type(
     # 0: admin
     # 1: invoice
     # 2: invalid
-    pathname = r['path'].split('/')[1]
+    pathname = r["path"].split("/")[1]
 
-    if not api_key_header and not api_key_query:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+    token = api_key_header or api_key_query
 
-    token = api_key_header if api_key_header else api_key_query
+    if not token:
+        raise HTTPException(
+            status_code=HTTPStatus.UNAUTHORIZED,
+            detail="Invoice (or Admin) key required.",
+        )
 
-    try:
-        checker = WalletAdminKeyChecker(api_key=token)
-        await checker.__call__(r)
-        wallet = WalletTypeInfo(0, checker.wallet)
-        if (LNBITS_ADMIN_USERS and wallet.wallet.user not in LNBITS_ADMIN_USERS) and (LNBITS_ADMIN_EXTENSIONS and pathname in LNBITS_ADMIN_EXTENSIONS):
-            raise HTTPException(status_code=HTTPStatus.UNAUTHORIZED, detail="User not authorized.")
-        return wallet
-    except HTTPException as e:
-        if e.status_code == HTTPStatus.BAD_REQUEST:
+    for typenr, WalletChecker in zip(
+        [0, 1], [WalletAdminKeyChecker, WalletInvoiceKeyChecker]
+    ):
+        try:
+            checker = WalletChecker(api_key=token)
+            await checker.__call__(r)
+            wallet = WalletTypeInfo(typenr, checker.wallet)  # type: ignore
+            if wallet is None or wallet.wallet is None:
+                raise HTTPException(
+                    status_code=HTTPStatus.NOT_FOUND, detail="Wallet does not exist."
+                )
+            if (
+                wallet.wallet.user != settings.super_user
+                and wallet.wallet.user not in settings.lnbits_admin_users
+            ) and (
+                settings.lnbits_admin_extensions
+                and pathname in settings.lnbits_admin_extensions
+            ):
+                raise HTTPException(
+                    status_code=HTTPStatus.FORBIDDEN,
+                    detail="User not authorized for this extension.",
+                )
+            return wallet
+        except HTTPException as e:
+            if e.status_code == HTTPStatus.BAD_REQUEST:
+                raise
+            elif e.status_code == HTTPStatus.UNAUTHORIZED:
+                # we pass this in case it is not an invoice key, nor an admin key, and then return NOT_FOUND at the end of this block
+                pass
+            else:
+                raise
+        except:
             raise
-        if e.status_code == HTTPStatus.UNAUTHORIZED:
-            pass
-    except:
-        raise
-
-    try:
-        checker = WalletInvoiceKeyChecker(api_key=token)
-        await checker.__call__(r)
-        wallet = WalletTypeInfo(1, checker.wallet)
-        if (LNBITS_ADMIN_USERS and wallet.wallet.user not in LNBITS_ADMIN_USERS) and (LNBITS_ADMIN_EXTENSIONS and pathname in LNBITS_ADMIN_EXTENSIONS):
-           raise HTTPException(status_code=HTTPStatus.UNAUTHORIZED, detail="User not authorized.")
-        return wallet
-    except HTTPException as e:
-        if e.status_code == HTTPStatus.BAD_REQUEST:
-            raise
-        if e.status_code == HTTPStatus.UNAUTHORIZED:
-            return WalletTypeInfo(2, None)
-    except:
-        raise
+    raise HTTPException(
+        status_code=HTTPStatus.NOT_FOUND, detail="Wallet does not exist."
+    )
 
 
 async def require_admin_key(
@@ -165,7 +185,14 @@ async def require_admin_key(
     api_key_header: str = Security(api_key_header),
     api_key_query: str = Security(api_key_query),
 ):
-    token = api_key_header if api_key_header else api_key_query
+
+    token = api_key_header or api_key_query
+
+    if not token:
+        raise HTTPException(
+            status_code=HTTPStatus.UNAUTHORIZED,
+            detail="Admin key required.",
+        )
 
     wallet = await get_key_type(r, token)
 
@@ -184,7 +211,14 @@ async def require_invoice_key(
     api_key_header: str = Security(api_key_header),
     api_key_query: str = Security(api_key_query),
 ):
-    token = api_key_header if api_key_header else api_key_query
+
+    token = api_key_header or api_key_query
+
+    if not token:
+        raise HTTPException(
+            status_code=HTTPStatus.UNAUTHORIZED,
+            detail="Invoice (or Admin) key required.",
+        )
 
     wallet = await get_key_type(r, token)
 
@@ -201,17 +235,71 @@ async def require_invoice_key(
 
 async def check_user_exists(usr: UUID4) -> User:
     g().user = await get_user(usr.hex)
+
     if not g().user:
         raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND, detail="User  does not exist."
+            status_code=HTTPStatus.NOT_FOUND, detail="User does not exist."
         )
 
-    if LNBITS_ALLOWED_USERS and g().user.id not in LNBITS_ALLOWED_USERS:
+    if (
+        len(settings.lnbits_allowed_users) > 0
+        and g().user.id not in settings.lnbits_allowed_users
+        and g().user.id not in settings.lnbits_admin_users
+        and g().user.id != settings.super_user
+    ):
         raise HTTPException(
             status_code=HTTPStatus.UNAUTHORIZED, detail="User not authorized."
         )
 
-    if LNBITS_ADMIN_USERS and g().user.id in LNBITS_ADMIN_USERS:
-        g().user.admin = True
-
     return g().user
+
+
+async def check_admin(usr: UUID4) -> User:
+    user = await check_user_exists(usr)
+    if user.id != settings.super_user and user.id not in settings.lnbits_admin_users:
+        raise HTTPException(
+            status_code=HTTPStatus.UNAUTHORIZED,
+            detail="User not authorized. No admin privileges.",
+        )
+    user.admin = True
+    user.super_user = False
+    if user.id == settings.super_user:
+        user.super_user = True
+
+    return user
+
+
+async def check_super_user(usr: UUID4) -> User:
+    user = await check_admin(usr)
+    if user.id != settings.super_user:
+        raise HTTPException(
+            status_code=HTTPStatus.UNAUTHORIZED,
+            detail="User not authorized. No super user privileges.",
+        )
+    return user
+
+
+def parse_filters(model: Type[BaseModel]):
+    """
+    Parses the query params as filters.
+    :param model: model used for validation of filter values
+    """
+
+    def dependency(
+        request: Request, limit: Optional[int] = None, offset: Optional[int] = None
+    ):
+        params = request.query_params
+        filters = []
+        for key in params.keys():
+            try:
+                filters.append(Filter.parse_query(key, params.getlist(key), model))
+            except ValueError:
+                continue
+
+        return Filters(
+            filters=filters,
+            limit=limit,
+            offset=offset,
+        )
+
+    return dependency
