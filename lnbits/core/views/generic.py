@@ -389,7 +389,7 @@ async def manifest(usr: str):
     }
 
 ####################### NODE ###########################
-SERVICE_FEE = 1
+
 @core_html_routes.get(
     "/transactions",
     response_class=HTMLResponse,
@@ -412,7 +412,7 @@ async def transactions(
     user_id = usr.hex if usr else None
     wallet_id = wal.hex if wal else None
     wallet_name = nme
-    service_fee = int(SERVICE_FEE) if int(SERVICE_FEE) == SERVICE_FEE else SERVICE_FEE
+    service_fee = int(settings.lnbits_service_fee) if int(settings.lnbits_service_fee) == settings.lnbits_service_fee else settings.lnbits_service_fee
 
     if not user_id:
         user = await get_user((await create_account()).id)
@@ -422,11 +422,11 @@ async def transactions(
             return template_renderer().TemplateResponse(
                 "error.html", {"request": request, "err": "User does not exist."}
             )
-        if LNBITS_ALLOWED_USERS and user_id not in LNBITS_ALLOWED_USERS:
+        if settings.lnbits_allowed_users and user_id not in settings.lnbits_allowed_users:
             return template_renderer().TemplateResponse(
                 "error.html", {"request": request, "err": "User not authorized."}
             )
-        if LNBITS_ADMIN_USERS and user_id in LNBITS_ADMIN_USERS:
+        if settings.lnbits_admin_users and user_id in settings.lnbits_admin_users:
             user.admin = True
     if not wallet_id:
         if user.wallets and not wallet_name:
@@ -478,7 +478,7 @@ async def dashboard(
     user_id = usr.hex if usr else None
     wallet_id = wal.hex if wal else None
     wallet_name = nme
-    service_fee = int(SERVICE_FEE) if int(SERVICE_FEE) == SERVICE_FEE else SERVICE_FEE
+    service_fee = int(settings.lnbits_service_fee) if int(settings.lnbits_service_fee) == settings.lnbits_service_fee else settings.lnbits_service_fee
 
     if not user_id:
         user = await get_user((await create_account()).id)
@@ -488,11 +488,11 @@ async def dashboard(
             return template_renderer().TemplateResponse(
                 "error.html", {"request": request, "err": "User does not exist."}
             )
-        if LNBITS_ALLOWED_USERS and user_id not in LNBITS_ALLOWED_USERS:
+        if settings.lnbits_allowed_users and user_id not in settings.lnbits_allowed_users:
             return template_renderer().TemplateResponse(
                 "error.html", {"request": request, "err": "User not authorized."}
             )
-        if LNBITS_ADMIN_USERS and user_id in LNBITS_ADMIN_USERS:
+        if settings.lnbits_admin_users and user_id in settings.lnbits_admin_users:
             user.admin = True
     if not wallet_id:
         if user.wallets and not wallet_name:
@@ -545,7 +545,7 @@ async def channels(
     user_id = usr.hex if usr else None
     wallet_id = wal.hex if wal else None
     wallet_name = nme
-    service_fee = int(SERVICE_FEE) if int(SERVICE_FEE) == SERVICE_FEE else SERVICE_FEE
+    service_fee = int(settings.lnbits_service_fee) if int(settings.lnbits_service_fee) == settings.lnbits_service_fee else settings.lnbits_service_fee
 
     if not user_id:
         user = await get_user((await create_account()).id)
@@ -555,11 +555,11 @@ async def channels(
             return template_renderer().TemplateResponse(
                 "error.html", {"request": request, "err": "User does not exist."}
             )
-        if LNBITS_ALLOWED_USERS and user_id not in LNBITS_ALLOWED_USERS:
+        if settings.lnbits_allowed_users and user_id not in settings.lnbits_allowed_users:
             return template_renderer().TemplateResponse(
                 "error.html", {"request": request, "err": "User not authorized."}
             )
-        if LNBITS_ADMIN_USERS and user_id in LNBITS_ADMIN_USERS:
+        if settings.lnbits_admin_users and user_id in settings.lnbits_admin_users:
             user.admin = True
     if not wallet_id:
         if user.wallets and not wallet_name:
@@ -611,7 +611,7 @@ async def apps(
     user_id = usr.hex if usr else None
     wallet_id = wal.hex if wal else None
     wallet_name = nme
-    service_fee = int(SERVICE_FEE) if int(SERVICE_FEE) == SERVICE_FEE else SERVICE_FEE
+    service_fee = int(settings.lnbits_service_fee) if int(settings.lnbits_service_fee) == settings.lnbits_service_fee else settings.lnbits_service_fee
 
     if not user_id:
         user = await get_user((await create_account()).id)
@@ -621,11 +621,11 @@ async def apps(
             return template_renderer().TemplateResponse(
                 "error.html", {"request": request, "err": "User does not exist."}
             )
-        if LNBITS_ALLOWED_USERS and user_id not in LNBITS_ALLOWED_USERS:
+        if settings.lnbits_allowed_users and user_id not in settings.lnbits_allowed_users:
             return template_renderer().TemplateResponse(
                 "error.html", {"request": request, "err": "User not authorized."}
             )
-        if LNBITS_ADMIN_USERS and user_id in LNBITS_ADMIN_USERS:
+        if settings.lnbits_admin_users and user_id in settings.lnbits_admin_users:
             user.admin = True
     if not wallet_id:
         if user.wallets and not wallet_name:
