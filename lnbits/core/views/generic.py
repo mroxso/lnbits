@@ -389,7 +389,7 @@ async def manifest(usr: str):
     }
 
 ####################### NODE ###########################
-
+SERVICE_FEE = 1
 @core_html_routes.get(
     "/transactions",
     response_class=HTMLResponse,
