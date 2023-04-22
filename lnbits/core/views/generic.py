@@ -244,11 +244,19 @@ async def wallet(
 
 @core_html_routes.get("/withdraw", response_class=JSONResponse)
 async def lnurl_full_withdraw(request: Request):
-    user = await get_user(request.query_params.get("usr"))
+    usr_param = request.query_params.get("usr")
+    if not usr_param:
+        return {"status": "ERROR", "reason": "usr parameter not provided."}
+
+    user = await get_user(usr_param)
     if not user:
         return {"status": "ERROR", "reason": "User does not exist."}
 
-    wallet = user.get_wallet(request.query_params.get("wal"))
+    wal_param = request.query_params.get("wal")
+    if not wal_param:
+        return {"status": "ERROR", "reason": "wal parameter not provided."}
+
+    wallet = user.get_wallet(wal_param)
     if not wallet:
         return {"status": "ERROR", "reason": "Wallet does not exist."}
 
@@ -265,15 +273,25 @@ async def lnurl_full_withdraw(request: Request):
 
 @core_html_routes.get("/withdraw/cb", response_class=JSONResponse)
 async def lnurl_full_withdraw_callback(request: Request):
-    user = await get_user(request.query_params.get("usr"))
+    usr_param = request.query_params.get("usr")
+    if not usr_param:
+        return {"status": "ERROR", "reason": "usr parameter not provided."}
+
+    user = await get_user(usr_param)
     if not user:
         return {"status": "ERROR", "reason": "User does not exist."}
 
-    wallet = user.get_wallet(request.query_params.get("wal"))
+    wal_param = request.query_params.get("wal")
+    if not wal_param:
+        return {"status": "ERROR", "reason": "wal parameter not provided."}
+
+    wallet = user.get_wallet(wal_param)
     if not wallet:
         return {"status": "ERROR", "reason": "Wallet does not exist."}
 
     pr = request.query_params.get("pr")
+    if not pr:
+        return {"status": "ERROR", "reason": "payment_request not provided."}
 
     async def pay():
         try:
@@ -315,7 +333,11 @@ async def deletewallet(wal: str = Query(...), usr: str = Query(...)):
 
 @core_html_routes.get("/withdraw/notify/{service}")
 async def lnurl_balance_notify(request: Request, service: str):
-    bc = await get_balance_check(request.query_params.get("wal"), service)
+    wal_param = request.query_params.get("wal")
+    if not wal_param:
+        return {"status": "ERROR", "reason": "wal parameter not provided."}
+
+    bc = await get_balance_check(wal_param, service)
     if bc:
         await redeem_lnurl_withdraw(bc.wallet, bc.url)
 
@@ -327,12 +349,17 @@ async def lnurlwallet(request: Request):
     async with db.connect() as conn:
         account = await create_account(conn=conn)
         user = await get_user(account.id, conn=conn)
-        wallet = await create_wallet(user_id=user.id, conn=conn)  # type: ignore
+        assert user, "lnurlwallet, User should exist."
+        wallet = await create_wallet(user_id=user.id, conn=conn)
+
+    lightning_param = request.query_params.get("lightning")
+    if not lightning_param:
+        return {"status": "ERROR", "reason": "lightning parameter not provided."}
 
     asyncio.create_task(
         redeem_lnurl_withdraw(
             wallet.id,
-            request.query_params.get("lightning"),
+            lightning_param,
             "LNbits initial funding: voucher redeem.",
             {"tag": "lnurlwallet"},
             5,  # wait 5 seconds before sending the invoice to the service
@@ -340,7 +367,7 @@ async def lnurlwallet(request: Request):
     )
 
     return RedirectResponse(
-        f"/wallet?usr={user.id}&wal={wallet.id}",  # type: ignore
+        f"/wallet?usr={user.id}&wal={wallet.id}",
         status_code=status.HTTP_307_TEMPORARY_REDIRECT,
     )
 
