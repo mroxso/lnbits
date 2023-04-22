@@ -1,12 +1,6 @@
-{% extends "base.html" %}
-<!---->
-{% from "macros.jinja" import window_vars with context %}
-<!---->
 
-<!---->
-{% block title %}  {{ SITE_TITLE }} {% endblock %}
-<!---->
-{% block page %}
+<q-tab-panel name="transactions">
+  <q-card-section class="q-pa-none">
 
 <q-tabs
 class="lt-md fixed-bottom left-0 right-0 bg-primary text-white shadow-2 z-max"
@@ -269,13 +263,6 @@ indicator-color="transparent"
   
 </div>
 
-{% endblock %} 
-{% block scripts %} {{ window_vars(user, wallet) }}
+</q-card-section>
+</q-tab-panel>
 
-<script src="/core/static/js/wallet.js"></script>
-<link rel="manifest" href="/manifest/{{ user.id }}.webmanifest" />
-<script src="https://cdn.jsdelivr.net/npm/pica@6.1.1/dist/pica.min.js"></script>
-<script>
-
-</script>
-{% endblock %}

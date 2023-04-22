@@ -270,6 +270,37 @@ Vue.component('lnbits-admin-ui', {
   }
 })
 
+
+Vue.component('lnbits-node-ui', {
+  data: function () {
+    return {
+      extensions: [],
+      user: null
+    }
+  },
+  template: `
+    <q-list v-if="user && user.admin" dense class="lnbits-drawer__q-list">
+      <q-item-label header>Admin</q-item-label>
+      <q-item clickable tag="a" :href="['/node?usr=', user.id].join('')">
+        <q-item-section side>
+          <q-icon name="hub" color="grey-5" size="md"></q-icon>
+        </q-item-section>
+        <q-item-section>
+          <q-item-label lines="1" class="text-caption" v-text="$t('manage_node')"></q-item-label>
+        </q-item-section>
+      </q-item>
+    </q-list>
+  `,
+
+  created: function () {
+    if (window.user) {
+      this.user = LNbits.map.user(window.user)
+    }
+  }
+})
+
+
+
 Vue.component('lnbits-payment-details', {
   props: ['payment'],
   mixins: [windowMixin],
