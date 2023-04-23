@@ -31,7 +31,7 @@
     },
     "vendor": [
         "./node_modules/moment/moment.js",
-        "./node_modules/underscore/underscore.js",
+        "./node_modules/underscore/underscore-umd.js",
         "./node_modules/axios/dist/axios.js",
         "./node_modules/vue/dist/vue.js",
         "./node_modules/vue-router/dist/vue-router.js",

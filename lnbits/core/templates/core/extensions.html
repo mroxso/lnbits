@@ -10,7 +10,7 @@
         flat
         color="primary"
         type="a"
-        :href="['/install?usr=', user.id].join('')"
+        href="/install"
         :label="$t('manage_extensions')"
       ></q-btn>
     </p>
@@ -112,18 +112,14 @@
       <q-separator></q-separator>
       <q-card-actions>
         <div v-if="extension.isEnabled">
-          <q-btn
-            flat
-            color="primary"
-            type="a"
-            :href="[extension.url, '?usr=', g.user.id].join('')"
+          <q-btn flat color="primary" type="a" :href="extension.url"
             >Open</q-btn
           >
           <q-btn
             flat
             color="grey-5"
             type="a"
-            :href="['{{ url_for('core.extensions') }}', '?usr=', g.user.id, '&disable=', extension.code].join('')"
+            :href="['{{ url_for('core.extensions') }}', '?disable=', extension.code].join('')"
           >
             Disable</q-btn
           >
@@ -133,7 +129,7 @@
           flat
           color="primary"
           type="a"
-          :href="['{{ url_for('core.extensions') }}', '?usr=', g.user.id, '&enable=', extension.code].join('')"
+          :href="['{{ url_for('core.extensions') }}', '?enable=', extension.code].join('')"
         >
           Enable</q-btn
         >

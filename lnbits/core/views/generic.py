@@ -167,65 +167,53 @@ async def extensions_install(
     response_class=HTMLResponse,
     description="""
 Args:
-
-just **wallet_name**: create a new user, then create a new wallet for user with wallet_name<br>
-just **user_id**: return the first user wallet or create one if none found (with default wallet_name)<br>
-**user_id** and **wallet_name**: create a new wallet for user with wallet_name<br>
-**user_id** and **wallet_id**: return that wallet if user is the owner<br>
-nothing: create everything<br>
+**wal**: return that wallet if user is the owner<br>
+nothing: create new wallet and redirect<br>
 """,
 )
-async def wallet(
-    request: Request = Query(None),
-    nme: Optional[str] = Query(None),
-    usr: Optional[UUID4] = Query(None),
-    wal: Optional[UUID4] = Query(None),
-):
-    user_id = usr.hex if usr else None
-    wallet_id = wal.hex if wal else None
-    wallet_name = nme
+async def wallet(request: Request, wal: Optional[str] = None):
 
-    if not user_id:
-        user = await get_user((await create_account()).id)
-        logger.info(f"Create user {user.id}")  # type: ignore
-    else:
-        user = await get_user(user_id)
-        if not user:
-            return template_renderer().TemplateResponse(
-                "error.html", {"request": request, "err": "User does not exist."}
-            )
-        if (
-            len(settings.lnbits_allowed_users) > 0
-            and user_id not in settings.lnbits_allowed_users
-            and user_id not in settings.lnbits_admin_users
-            and user_id != settings.super_user
-        ):
-            return template_renderer().TemplateResponse(
-                "error.html", {"request": request, "err": "User not authorized."}
-            )
-        if user_id == settings.super_user or user_id in settings.lnbits_admin_users:
-            user.admin = True
-        if user_id == settings.super_user:
-            user.super_user = True
+    if not request.state.user:
+        # return RedirectResponse("/")
+        return template_renderer().TemplateResponse(
+            "error.html", {"request": request, "err": "Not logged in."}
+        )
 
-    if not wallet_id:
-        if user.wallets and not wallet_name:  # type: ignore
-            wallet = user.wallets[0]  # type: ignore
+    user = await get_user(request.state.user.id)
+    assert user, "Logged in user has to exist."
+
+    user_id = user.id
+
+    if (
+        len(settings.lnbits_allowed_users) > 0
+        and user_id not in settings.lnbits_allowed_users
+        and user_id not in settings.lnbits_admin_users
+        and user_id != settings.super_user
+    ):
+        return template_renderer().TemplateResponse(
+            "error.html", {"request": request, "err": "User not authorized."}
+        )
+
+    if user_id == settings.super_user or user_id in settings.lnbits_admin_users:
+        user.admin = True
+    if user_id == settings.super_user:
+        user.super_user = True
+
+    if not wal:
+        if len(user.wallets) > 0:
+            wallet = user.wallets[0]
         else:
-            wallet = await create_wallet(user_id=user.id, wallet_name=wallet_name)  # type: ignore
-            logger.info(
-                f"Created new wallet {wallet_name if wallet_name else '(no name)'} for user {user.id}"  # type: ignore
-            )
+            wallet = await create_wallet(user_id=user.id, wallet_name=user.email)
+            logger.info(f"Created new wallet {user.email} for user {user.id}")
 
         return RedirectResponse(
-            f"/wallet?usr={user.id}&wal={wallet.id}",  # type: ignore
+            f"/wallet?wal={wallet.id}",
             status_code=status.HTTP_307_TEMPORARY_REDIRECT,
         )
 
-    logger.debug(
-        f"Access {'user '+ user.id + ' ' if user else ''} {'wallet ' + wallet_name if wallet_name else ''}"
-    )
-    userwallet = user.get_wallet(wallet_id)  # type: ignore
+    logger.debug(f"Access user {user.id} wallet {wal}")
+    userwallet = user.get_wallet(wal)
+
     if not userwallet:
         return template_renderer().TemplateResponse(
             "error.html", {"request": request, "err": "Wallet not found"}
@@ -235,10 +223,10 @@ async def wallet(
         "core/wallet.html",
         {
             "request": request,
-            "user": user.dict(),  # type: ignore
+            "user": user.dict(),
             "wallet": userwallet.dict(),
             "service_fee": settings.lnbits_service_fee,
-            "web_manifest": f"/manifest/{user.id}.webmanifest",  # type: ignore
+            "web_manifest": f"/manifest/{user.id}.webmanifest",
         },
     )
 

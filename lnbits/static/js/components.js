@@ -116,7 +116,7 @@ Vue.component('lnbits-extension-list', {
       <q-item v-for="extension in userExtensions" :key="extension.code"
         clickable
         :active="extension.isActive"
-        tag="a" :href="[extension.url, '?usr=', user.id].join('')">
+        tag="a" :href="extension.url">
         <q-item-section side>
           <q-avatar size="md">
             <q-img
@@ -132,7 +132,7 @@ Vue.component('lnbits-extension-list', {
           <q-icon name="chevron_right" color="grey-5" size="md"></q-icon>
         </q-item-section>
       </q-item>
-      <q-item clickable tag="a" :href="['/extensions?usr=', user.id].join('')">
+      <q-item clickable tag="a" href="/extensions">
         <q-item-section side>
           <q-icon name="clear_all" color="grey-5" size="md"></q-icon>
         </q-item-section>
@@ -140,7 +140,7 @@ Vue.component('lnbits-extension-list', {
           <q-item-label lines="1" class="text-caption" v-text="$t('extensions')"></q-item-label>
         </q-item-section>
       </q-item>
-      <q-item clickable tag="a" :href="['/install?usr=', user.id].join('')">
+      <q-item clickable tag="a" href="/install">
         <q-item-section side>
           <q-icon name="playlist_add" color="grey-5" size="md"></q-icon>
         </q-item-section>
@@ -194,7 +194,7 @@ Vue.component('lnbits-admin-ui', {
   template: `
     <q-list v-if="user && user.admin" dense class="lnbits-drawer__q-list">
       <q-item-label header>Admin</q-item-label>
-      <q-item clickable tag="a" :href="['/admin?usr=', user.id].join('')">
+      <q-item clickable tag="a" href="/admin">
         <q-item-section side>
           <q-icon name="admin_panel_settings" color="grey-5" size="md"></q-icon>
         </q-item-section>
