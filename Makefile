@@ -86,3 +86,11 @@ bundle:
 	npm run vendor_minify_css
 	npm run vendor_bundle_js
 	npm run vendor_minify_js
+
+install-pre-commit-hook:
+	@echo "Installing pre-commit hook to git"
+	@echo "Uninstall the hook with poetry run pre-commit uninstall"
+	poetry run pre-commit install
+
+pre-commit:
+	poetry run pre-commit run --all-files
