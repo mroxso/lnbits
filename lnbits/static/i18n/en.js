@@ -7,6 +7,7 @@ window.localisation.en = {
   channels: 'Channels',
   transactions: 'Transactions',
   dashboard: 'Dashboard',
+  manage_node: 'Manage Node',
   restart: 'Restart server',
   save: 'Save',
   save_tooltip: 'Save your changes',
