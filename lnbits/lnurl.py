@@ -1,6 +1,7 @@
-from fastapi.datastructures import URL
 from typing import Union
+
 from bech32 import bech32_decode, bech32_encode, convertbits
+from fastapi.datastructures import URL
 
 
 def decode(lnurl: str) -> str:
