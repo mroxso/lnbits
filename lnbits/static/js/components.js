@@ -111,31 +111,45 @@ Vue.component('lnbits-extension-list', {
     }
   },
   template: `
-  <div  v-show="isExtension">
-  <q-list v-if="user && extensions.length" dense class="lnbits-drawer__q-list">
-    <q-item v-for="extension in userExtensions" :key="extension.code"
-      clickable
-      :active="extension.isActive"
-      tag="a" :href="[extension.url, '?usr=', user.id].join('')">
-      <q-item-section side>
-        <q-avatar size="md"
-          :color="(extension.isActive)
-            ? (($q.dark.isActive) ? 'primary' : 'primary')
-            : 'grey-5'">
-          <q-icon :name="extension.icon" :size="($q.dark.isActive) ? '21px' : '20px'"
-            :color="($q.dark.isActive) ? 'blue-grey-10' : 'grey-3'"></q-icon>
-        </q-avatar>
-      </q-item-section>
-      <q-item-section>
-        <q-item-label lines="1">{{ extension.name }}</q-item-label>
-      </q-item-section>
-      <q-item-section side v-show="extension.isActive">
-        <q-icon name="chevron_right" color="grey-5" size="md"></q-icon>
-      </q-item-section>
-    </q-item>
-  </q-list>
-  </div>
-`,
+    <q-list v-if="user" dense class="lnbits-drawer__q-list">
+      <q-item-label header v-text="$t('extensions')"></q-item-label>
+      <q-item v-for="extension in userExtensions" :key="extension.code"
+        clickable
+        :active="extension.isActive"
+        tag="a" :href="[extension.url, '?usr=', user.id].join('')">
+        <q-item-section side>
+          <q-avatar size="md">
+            <q-img
+              :src="extension.tile"
+              style="max-width:20px"
+            ></q-img>
+          </q-avatar>
+        </q-item-section>
+        <q-item-section>
+          <q-item-label lines="1">{{ extension.name }} </q-item-label>
+        </q-item-section>
+        <q-item-section side v-show="extension.isActive">
+          <q-icon name="chevron_right" color="grey-5" size="md"></q-icon>
+        </q-item-section>
+      </q-item>
+      <q-item clickable tag="a" :href="['/extensions?usr=', user.id].join('')">
+        <q-item-section side>
+          <q-icon name="clear_all" color="grey-5" size="md"></q-icon>
+        </q-item-section>
+        <q-item-section>
+          <q-item-label lines="1" class="text-caption" v-text="$t('extensions')"></q-item-label>
+        </q-item-section>
+      </q-item>
+      <q-item clickable tag="a" :href="['/install?usr=', user.id].join('')">
+        <q-item-section side>
+          <q-icon name="playlist_add" color="grey-5" size="md"></q-icon>
+        </q-item-section>
+        <q-item-section>
+          <q-item-label lines="1" class="text-caption" v-text="$t('manage_extensions')"></q-item-label>
+        </q-item-section>
+      </q-item>
+    </q-list>
+  `,
   computed: {
     userExtensions: function () {
       if (!this.user) return []
@@ -151,11 +165,6 @@ Vue.component('lnbits-extension-list', {
           obj.isActive = path.startsWith(obj.url)
           return obj
         })
-    },
-    isExtension: function () {
-      if (window.location.href.indexOf("extensions") != -1){
-        return true
-      }
     }
   },
   created: function () {
