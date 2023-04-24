@@ -405,7 +405,7 @@ async def index(request: Request, user: User = Depends(check_admin)):
             "user": user.dict(),
             "settings": settings.dict(),
             "balance": balance,
-            "wallets": user.wallets[0],
+            "wallets": user.wallets[0].dict(),
         },
     )
 
