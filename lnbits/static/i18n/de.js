@@ -75,7 +75,6 @@ window.localisation.de = {
   disclaimer_dialog:
     'Login-Funktionalität wird in einem zukünftigen Update veröffentlicht, für jetzt, stellen Sie sicher, dass Sie diese Seite als Lesezeichen speichern, um zukünftigen Zugriff auf Ihre Wallet zu erhalten! Dieser Service ist in BETA und wir übernehmen keine Verantwortung für Personen, die den Zugriff auf ihre Mittel verlieren.',
   no_transactions: 'Noch keine Transaktionen',
-  manage_extensions: 'Erweiterungen verwalten',
   manage_server: 'Server verwalten',
   extensions: 'Erweiterungen',
   no_extensions: 'Sie haben keine Erweiterungen installiert :(',
